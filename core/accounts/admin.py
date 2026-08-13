@@ -7,17 +7,17 @@ from .models import User, Profile
 
 class CustomUserAdmin(UserAdmin):
     model = User
-    list_display = ("email", "is_staff", "is_active", "is_verified")
-    list_filter = ("email", "is_staff", "is_active", "is_verified")
+    list_display = ("mobile", "is_staff", "is_active", "is_mobile_verified")
+    list_filter = ("mobile", "is_staff", "is_active", "is_mobile_verified")
     fieldsets = (
-        ("Authentication", {"fields": ("email", "password")}),
+        ("Authentication", {"fields": ("mobile", "password")}),
         (
             "Permissions",
             {
                 "fields": (
                     "is_staff",
                     "is_active",
-                    "is_verified",
+                    "is_mobile_verified",
                     "is_superuser",
                 )
             },
@@ -31,12 +31,12 @@ class CustomUserAdmin(UserAdmin):
             {
                 "classes": ("wide",),
                 "fields": (
-                    "email",
+                    "mobile",
                     "password1",
                     "password2",
                     "is_staff",
                     "is_active",
-                    "is_verified",
+                    "is_mobile_verified",
                     "is_superuser",
                     "groups",
                     "user_permissions",
@@ -44,8 +44,8 @@ class CustomUserAdmin(UserAdmin):
             },
         ),
     )
-    search_fields = ("email",)
-    ordering = ("email",)
+    search_fields = ("mobile",)
+    ordering = ("mobile",)
 
 
 admin.site.register(Profile)
