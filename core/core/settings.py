@@ -52,6 +52,8 @@ INSTALLED_APPS = [
     "drf_yasg",
     "corsheaders",
     "mail_templated",
+    "phonenumber_field",
+    "freight",
 ]
 
 MIDDLEWARE = [
