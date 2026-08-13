@@ -3,6 +3,7 @@ from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.exceptions import ValidationError
 from django.db import models
+from freight.models import Branch
 from phonenumber_field.modelfields import PhoneNumberField
 import phonenumbers
 
@@ -74,6 +75,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     mobile = PhoneNumberField(unique=True, db_index=True)
     email = models.EmailField(_("email address"), unique=True)
+    branch = models.ForeignKey(
+        Branch,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='users'
+    )
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     is_mobile_verified  = models.BooleanField(default=False)
