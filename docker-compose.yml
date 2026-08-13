@@ -1,7 +1,7 @@
 services:
   backend:
     build: .
-    container_name: backend
+    container_name: fright_backend
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - ./core:/app
@@ -15,9 +15,9 @@ services:
     image: rnwood/smtp4dev:v3
     restart: always
     ports:
-      - "5000:80"   # Web UI
-      - "25:25"     # SMTP
-      - "143:143"   # IMAP
+      - "5001:80"   # Web UI
+      - "2526:25"   # SMTP
+      - "1143:143"  # IMAP
     volumes:
       - smtp4dev-data:/smtp4dev
     environment:
