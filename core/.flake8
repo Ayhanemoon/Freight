@@ -1,0 +1,19 @@
+[flake8]
+
+exclude =
+    .git,
+    .gitignore,
+    *.pot,
+    *.py[co],
+    __pycache__,
+    env/,
+    venv/,
+    .venv/,
+    settings.py,
+    migrations/,
+    staticfiles/,
+    node_modules/,
+    __init__.py,
+
+ignore =
+    E501

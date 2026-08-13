@@ -1,0 +1,28 @@
+# general dependencies
+django >3.2,<3.3
+Pillow
+djangorestframework
+
+# third-party packages
+djangorestframework_simplejwt
+markdown
+django-filter 
+python-decouple
+django-cors-headers
+django-templated-mail
+
+#deployment dependencies
+
+# api docs
+drf-yasg
+drf-yasg[validation]
+
+# email support
+django-mail-templated
+
+# reformatting and testing
+black
+flake8
+pytest
+pytest-django
+faker

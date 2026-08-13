@@ -1,0 +1,26 @@
+name: Django Backend CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  backend-tests:
+    name: Build and Test Django Backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build and start Docker services
+        run: docker compose up -d --build
+
+      - name: Run flake8 and pytest
+        run: docker exec backend sh -c "flake8 && pytest ."
+
+      - name: Stop Docker services
+        if: always()
+        run: docker compose down
