@@ -10,6 +10,8 @@ django-filter
 python-decouple
 django-cors-headers
 django-templated-mail
+django-phonenumber-field
+phonenumbers
 
 #deployment dependencies
 
