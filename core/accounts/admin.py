@@ -7,8 +7,8 @@ from .models import User, Profile
 
 class CustomUserAdmin(UserAdmin):
     model = User
-    list_display = ("mobile", "is_staff", "is_active", "is_mobile_verified")
-    list_filter = ("mobile", "is_staff", "is_active", "is_mobile_verified")
+    list_display = ("mobile", "is_staff", "branch", "is_active", "is_mobile_verified")
+    list_filter = ("mobile", "is_staff", "branch",  "is_active", "is_mobile_verified")
     fieldsets = (
         ("Authentication", {"fields": ("mobile", "password")}),
         (
@@ -17,6 +17,7 @@ class CustomUserAdmin(UserAdmin):
                 "fields": (
                     "is_staff",
                     "is_active",
+                    "branch",
                     "is_mobile_verified",
                     "is_superuser",
                 )
@@ -32,6 +33,7 @@ class CustomUserAdmin(UserAdmin):
                 "classes": ("wide",),
                 "fields": (
                     "mobile",
+                    "branch",
                     "password1",
                     "password2",
                     "is_staff",
