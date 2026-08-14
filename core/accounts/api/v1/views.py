@@ -30,19 +30,16 @@ class RegisterApiView(generics.GenericAPIView):
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            user = User.objects.get(email=serializer.validated_data["email"])
-            token = RefreshToken.for_user(user).access_token
-            current_site = get_current_site(request).domain
-            relativeLink = reverse("accounts:api-v1:email_verify")
-            absurl = "http://" + current_site + relativeLink + "?token=" + str(token)
-            # email_body = 'Hi '+user.email + \
-            #     ' Use the link below to verify your email \n' + absurl
-            # data = {'email_body': email_body, 'to_email': user.email,
-            #         'email_subject': 'Verify your email'}
-            #  Util.send_email(data)
-            data = {"email": user.email, "link": absurl, "site": current_site}
-            Util.send_templated_email("email/verification_template.html", data)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            user = User.objects.get(mobile=serializer.validated_data["mobile"])
+            return Response(
+                {
+                    "id": user.id,
+                    "mobile": str(user.mobile),
+                    "detail": "User created successfully",
+                },
+                status=status.HTTP_201_CREATED,
+            )
+        
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -56,8 +53,8 @@ class VerifyEmailApiView(generics.GenericAPIView):
     #     serializer.is_valid(raise_exception=True)
 
     #     user = serializer.validated_data["user"]
-    #     if not user.is_verified:
-    #         user.is_verified = True
+    #     if not user.is_mobile_verified:
+    #         user.is_mobile_verified = True
     #         user.save()
 
     #     return Response(
@@ -66,12 +63,12 @@ class VerifyEmailApiView(generics.GenericAPIView):
     #     )
 
     def post(self, request):
-        serializer = self.serializer_class(daya=request.data)
+        serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = serializer.validated_data["user"]
-        if not user.is_verified:
-            user.is_verified = True
+        if not user.is_mobile_verified:
+            user.is_mobile_verified = True
             user.save()
 
         return Response(
@@ -135,7 +132,7 @@ class ObtainTokenApiView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
         token, created = Token.objects.get_or_create(user=user)
-        return Response({"token": token.key, "user_id": user.pk, "email": user.email})
+        return Response({"token": token.key, "user_id": user.pk, "email": user.mobile})
 
 
 class DiscardAuthTokenApiView(views.APIView):
@@ -164,7 +161,7 @@ class JWTObtainPairTokenApiView(generics.CreateAPIView):
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
                 "user_id": user.pk,
-                "email": user.email,
+                "email": user.mobile,
             }
         )
 

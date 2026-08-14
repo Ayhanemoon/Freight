@@ -13,7 +13,7 @@ class TestPostAPI:
         self.user = User.objects.create_user(
             email="test@test.com",
             password="test@1234567",
-            is_verified=True,
+            is_mobile_verified=True,
             is_active=True,
         )
         self.profile = Profile.objects.get(user=self.user)

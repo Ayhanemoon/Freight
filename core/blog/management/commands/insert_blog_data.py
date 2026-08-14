@@ -25,7 +25,7 @@ class Command(BaseCommand):
             email=self.fake.email(),
             password="test@1234567",
             is_active=True,
-            is_verified=True,
+            is_mobile_verified=True,
         )
         profile = Profile.objects.get(user=user)
         profile.first_name = self.fake.first_name()

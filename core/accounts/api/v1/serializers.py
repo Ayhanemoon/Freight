@@ -54,7 +54,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 class ProfileSerializer(serializers.ModelSerializer):
     """Profile serializer to manage extra user info"""
 
-    email = serializers.EmailField(source="user.email", read_only=True)
+    email = serializers.EmailField(source="user.mobile", read_only=True)
 
     class Meta:
         model = Profile
@@ -132,8 +132,8 @@ class ObtainTokenSerializer(serializers.ModelSerializer):
             raise AuthenticationFailed("Invalid credentials, try again")
         if not user.is_active:
             raise AuthenticationFailed("Account disabled, contact admin")
-        if not user.is_verified:
-            raise AuthenticationFailed("Email is not verified")
+        if not user.is_mobile_verified:
+            raise AuthenticationFailed("mobile is not verified")
         attrs["user"] = user
         return super().validate(attrs)
 
@@ -161,7 +161,7 @@ class JWTObtainPairTokenSerializer(serializers.ModelSerializer):
             raise AuthenticationFailed("Invalid credentials, try again")
         if not user.is_active:
             raise AuthenticationFailed("Account disabled, contact admin")
-        if not user.is_verified:
+        if not user.is_mobile_verified:
             raise AuthenticationFailed("Email is not verified")
         attrs["user"] = user
         return super().validate(attrs)
@@ -183,7 +183,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             raise AuthenticationFailed("Invalid credentials, try again")
         if not user.is_active:
             raise AuthenticationFailed("Account disabled, contact admin")
-        if not user.is_verified:
+        if not user.is_mobile_verified:
             raise AuthenticationFailed("Email is not verified")
         # The default result (access/refresh tokens)
         data = super(CustomTokenObtainPairSerializer, self).validate(attrs)
@@ -206,7 +206,7 @@ class ResendVerifyTokenSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"details": "User with given email does not exist"}
             )
-        if user.is_verified:
+        if user.is_mobile_verified:
             raise serializers.ValidationError({"details": "User already verified"})
         attrs["user"] = user
         return attrs

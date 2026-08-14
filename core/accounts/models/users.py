@@ -74,7 +74,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     """Custom user model that uses mobile as the unique identifier."""
     
     mobile = PhoneNumberField(unique=True, db_index=True)
-    email = models.EmailField(_("email address"), unique=True)
+    email = models.EmailField(_("email address"))
     branch = models.ForeignKey(
         Branch,
         on_delete=models.SET_NULL,
@@ -101,4 +101,4 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
 
     def __str__(self):
-        return self.email
+        return str(self.mobile)

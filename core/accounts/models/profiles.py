@@ -16,7 +16,7 @@ class Profile(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.user.email
+        return str(self.user.mobile)
 
     @property
     def fullname(self):
