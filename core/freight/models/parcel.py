@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.db import models
 
-from freight.models.shipment_order import ShipmentOrder
+from freight.models import ShipmentOrder
 
 
 class Parcel(models.Model):

@@ -4,9 +4,7 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
-from freight.models.branch import Branch
-from freight.models.customer import Customer
-from freight.models.freight_company import FreightCompany
+from freight.models import Branch, Customer, FreightCompany
 
 
 class ShipmentOrder(models.Model):
