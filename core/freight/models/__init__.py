@@ -5,3 +5,9 @@ from .shipment_order import ShipmentOrder
 from .parcel import Parcel
 from .status_history import ShipmentStatusHistory
 from .collection_task import CollectionTask
+from .invoice import Invoice
+from .InvoiceCharge import InvoiceCharge
+from .InvoiceParcel import InvoiceParcel
+from .dispatch_batch import DispatchBatch
+from .dispatch_order import DispatchOrder
+from .dispatch_freight_assignment import DispatchFreightAssignment
