@@ -11,6 +11,9 @@ from freight.models import (
     Invoice,
     InvoiceCharge,
     InvoiceParcel,
+    DispatchBatch,
+    DispatchOrder,
+    DispatchFreightAssignment,
 )
 
 
@@ -203,4 +206,83 @@ class ShipmentStatusHistoryAdmin(admin.ModelAdmin):
         "changed_by",
         "note",
         "created_at",
+    )
+
+@admin.register(DispatchBatch)
+class DispatchBatchAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "branch",
+        "status",
+        "scheduled_at",
+        "dispatched_at",
+        "delivered_at",
+        "approved_at",
+        "completed_at",
+    )
+
+    list_filter = (
+        "branch",
+        "status",
+    )
+
+    search_fields = (
+        "id",
+        "branch__name",
+    )
+
+    autocomplete_fields = (
+        "branch",
+    )
+
+@admin.register(DispatchOrder)
+class DispatchOrderAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "batch",
+        "order",
+        "status",
+    )
+
+    list_filter = (
+        "batch",
+        "status",
+    )
+
+    search_fields = (
+        "id",
+        "batch__id",
+        "order__tracking_code",
+    )
+
+    autocomplete_fields = (
+        "batch",
+        "order",
+    )
+
+@admin.register(DispatchFreightAssignment)
+class DispatchFreightAssignmentAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "dispatch_order",
+        "freight_company",
+        "assigned_at",
+        "accepted_at",
+        "delivered_at",
+    )
+
+    list_filter = (
+        "freight_company",
+    )
+
+    search_fields = (
+        "id",
+        "dispatch_order__id",
+        "dispatch_order__order__tracking_code",
+        "freight_company__name",
+    )
+
+    autocomplete_fields = (
+        "dispatch_order",
+        "freight_company",
     )
