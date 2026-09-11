@@ -110,8 +110,16 @@ class EmailVerificationSerializer(serializers.ModelSerializer):
 
 
 class ObtainTokenSerializer(serializers.ModelSerializer):
-    mobile = serializers.CharField(min_length=10, max_length=15, write_only=True)
-    password = serializers.CharField(max_length=68, min_length=6, write_only=True)
+    mobile = serializers.CharField(
+        min_length=10,
+        max_length=15,
+        write_only=True,
+    )
+    password = serializers.CharField(
+        max_length=68,
+        min_length=6,
+        write_only=True,
+    )
 
     class Meta:
         model = User
@@ -120,27 +128,47 @@ class ObtainTokenSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         mobile = attrs.get("mobile", "")
         password = attrs.get("password", "")
-        filtered_user_by_mobile = User.objects.filter(mobile=mobile)
-        user = auth.authenticate(mobile=mobile, password=password)
 
-        if filtered_user_by_mobile.exists() and filtered_user_by_mobile[0].auth_provider != "email":
-            raise AuthenticationFailed(
-                detail=f"Please continue your login using {filtered_user_by_mobile[0].auth_provider}"
-            )
+        user = auth.authenticate(
+            mobile=mobile,
+            password=password,
+        )
 
         if not user:
-            raise AuthenticationFailed("Invalid credentials, try again")
+            raise AuthenticationFailed(
+                "Invalid credentials, try again"
+            )
+
         if not user.is_active:
-            raise AuthenticationFailed("Account disabled, contact admin")
+            raise AuthenticationFailed(
+                "Account disabled, contact admin"
+            )
+
+        if user.auth_provider != "mobile":
+            raise AuthenticationFailed(
+                detail=f"Please continue your login using {user.auth_provider}"
+            )
+
         if not user.is_mobile_verified:
-            raise AuthenticationFailed("Mobile is not verified")
+            raise AuthenticationFailed(
+                "Mobile is not verified"
+            )
+
         attrs["user"] = user
         return super().validate(attrs)
 
 
 class JWTObtainPairTokenSerializer(serializers.ModelSerializer):
-    mobile = serializers.CharField(min_length=10, max_length=15, write_only=True)
-    password = serializers.CharField(max_length=68, min_length=6, write_only=True)
+    mobile = serializers.CharField(
+        min_length=10,
+        max_length=15,
+        write_only=True,
+    )
+    password = serializers.CharField(
+        max_length=68,
+        min_length=6,
+        write_only=True,
+    )
 
     class Meta:
         model = User
@@ -149,20 +177,32 @@ class JWTObtainPairTokenSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         mobile = attrs.get("mobile", "")
         password = attrs.get("password", "")
-        filtered_user_by_mobile = User.objects.filter(mobile=mobile)
-        user = auth.authenticate(mobile=mobile, password=password)
 
-        if filtered_user_by_mobile.exists() and filtered_user_by_mobile[0].auth_provider != "email":
-            raise AuthenticationFailed(
-                detail=f"Please continue your login using {filtered_user_by_mobile[0].auth_provider}"
-            )
+        user = auth.authenticate(
+            mobile=mobile,
+            password=password,
+        )
 
         if not user:
-            raise AuthenticationFailed("Invalid credentials, try again")
+            raise AuthenticationFailed(
+                "Invalid credentials, try again"
+            )
+
         if not user.is_active:
-            raise AuthenticationFailed("Account disabled, contact admin")
+            raise AuthenticationFailed(
+                "Account disabled, contact admin"
+            )
+
+        if user.auth_provider != "mobile":
+            raise AuthenticationFailed(
+                detail=f"Please continue your login using {user.auth_provider}"
+            )
+
         if not user.is_mobile_verified:
-            raise AuthenticationFailed("Mobile is not verified")
+            raise AuthenticationFailed(
+                "Mobile is not verified"
+            )
+
         attrs["user"] = user
         return super().validate(attrs)
 
@@ -171,26 +211,38 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         mobile = attrs.get("mobile", "")
         password = attrs.get("password", "")
-        filtered_user_by_mobile = User.objects.filter(mobile=mobile)
-        user = auth.authenticate(mobile=mobile, password=password)
 
-        if filtered_user_by_mobile.exists() and filtered_user_by_mobile[0].auth_provider != "email":
-            raise AuthenticationFailed(
-                detail=f"Please continue your login using {filtered_user_by_mobile[0].auth_provider}"
-            )
+        user = auth.authenticate(
+            mobile=mobile,
+            password=password,
+        )
 
         if not user:
-            raise AuthenticationFailed("Invalid credentials, try again")
-        if not user.is_active:
-            raise AuthenticationFailed("Account disabled, contact admin")
-        if not user.is_mobile_verified:
-            raise AuthenticationFailed("Email is not verified")
-        # The default result (access/refresh tokens)
-        data = super(CustomTokenObtainPairSerializer, self).validate(attrs)
-        # Custom data you want to include
-        # and everything else you want to send in the response
-        return data
+            raise AuthenticationFailed(
+                "Invalid credentials, try again"
+            )
 
+        if not user.is_active:
+            raise AuthenticationFailed(
+                "Account disabled, contact admin"
+            )
+
+        if user.auth_provider != "mobile":
+            raise AuthenticationFailed(
+                detail=f"Please continue your login using {user.auth_provider}"
+            )
+
+        if not user.is_mobile_verified:
+            raise AuthenticationFailed(
+                "Mobile is not verified"
+            )
+
+        data = super(
+            CustomTokenObtainPairSerializer,
+            self,
+        ).validate(attrs)
+
+        return data
 
 class ResendVerifyTokenSerializer(serializers.ModelSerializer):
     mobile = serializers.CharField(min_length=10, max_length=15, write_only=True)
@@ -272,3 +324,24 @@ class SetNewPasswordSerializer(serializers.Serializer):
             return super().validate(attrs)
         except Exception:
             raise AuthenticationFailed("The reset link is invalid", 401)
+
+class UserListSerializer(serializers.ModelSerializer):
+    branch_name = serializers.CharField(
+        source="branch.name",
+        read_only=True,
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "mobile",
+            "email",
+            "branch",
+            "branch_name",
+            "is_active",
+            "is_mobile_verified",
+            "auth_provider",
+            "created_at",
+            "updated_at",
+        ]

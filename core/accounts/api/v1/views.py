@@ -5,6 +5,9 @@ from django.shortcuts import get_object_or_404
 from accounts.models import User, Profile
 from django.contrib.sites.shortcuts import get_current_site
 from django.urls import reverse
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.permissions import AllowAny
 from rest_framework.authtoken.models import Token
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import (
@@ -18,9 +21,12 @@ from .serializers import (
     PasswordResetRequestMobileSerializer,
     PasswordResetTokenVerificationSerializer,
     SetNewPasswordSerializer,
+    UserListSerializer,
 )
+from .permissions import CanViewUsers
+from django.utils import timezone
 from ..utils import Util
-
+from datetime import datetime
 
 class RegisterApiView(generics.GenericAPIView):
 
@@ -132,7 +138,7 @@ class ObtainTokenApiView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
         token, created = Token.objects.get_or_create(user=user)
-        return Response({"token": token.key, "user_id": user.pk, "email": user.mobile})
+        return Response({"token": token.key, "user_id": str(user.pk), "mobile": str(user.mobile)})
 
 
 class DiscardAuthTokenApiView(views.APIView):
@@ -145,9 +151,11 @@ class DiscardAuthTokenApiView(views.APIView):
             status=status.HTTP_200_OK,
         )
 
-
+@method_decorator(csrf_exempt, name="dispatch")
 class JWTObtainPairTokenApiView(generics.CreateAPIView):
     serializer_class = JWTObtainPairTokenSerializer
+    permission_classes = [AllowAny]
+    authentication_classes = []
 
     def create(self, request, *args, **kwargs):
         serializer = self.serializer_class(
@@ -156,12 +164,21 @@ class JWTObtainPairTokenApiView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
         refresh = RefreshToken.for_user(user)
+        access = refresh.access_token
         return Response(
             {
-                "access": str(refresh.access_token),
+                "access": str(access),
                 "refresh": str(refresh),
-                "user_id": user.pk,
-                "mobile": user.mobile,
+                "access_expires_at": datetime.fromtimestamp(
+                    access["exp"],
+                    tz=timezone.utc,
+                ).isoformat(),
+                "refresh_expires_at": datetime.fromtimestamp(
+                    refresh["exp"],
+                    tz=timezone.utc,
+                ).isoformat(),
+                "user_id": str(user.pk),
+                "mobile": str(user.mobile),
             }
         )
 
@@ -252,3 +269,17 @@ class PasswordResetSetNewApiView(generics.GenericAPIView):
             {"detail": "Password reset successfully"},
             status=status.HTTP_200_OK,
         )
+
+class UserListApiView(generics.ListAPIView):
+    serializer_class = UserListSerializer
+    permission_classes = [CanViewUsers]
+
+    def get_queryset(self):
+        user = self.request.user
+
+        queryset = User.objects.select_related("branch").all()
+
+        if user.is_superuser:
+            return queryset
+
+        return queryset.filter(branch=user.branch)

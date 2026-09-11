@@ -11,6 +11,7 @@ from .views import (
     DiscardAuthTokenApiView,
     JWTObtainPairTokenApiView,
     ProfileApiView,
+    UserListApiView,
 )
 from rest_framework_simplejwt.views import (
     TokenRefreshView,
@@ -66,4 +67,9 @@ urlpatterns = [
     path("jwt/verify/", TokenVerifyView.as_view(), name="jwt_verify"),
     # User profile management
     path("profile/", ProfileApiView.as_view(), name="profile"),
+    path(
+        "users/",
+        UserListApiView.as_view(),
+        name="user-list",
+    ),
 ]
