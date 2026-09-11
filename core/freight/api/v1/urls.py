@@ -7,7 +7,9 @@ from freight.api.v1.views import (
     FreightCompanyViewSet,
     ShipmentOrderViewSet,
     ParcelViewSet,
-    InvoiceViewSet
+    InvoiceViewSet,
+    InvoiceChargeCreateAPIView,
+    InvoiceChargeDetailAPIView,
 )
 
 app_name = "freight-api-v1"
@@ -52,4 +54,15 @@ router.register(
 
 urlpatterns = [
     path("", include(router.urls)),
+    path(
+        "invoices/<int:invoice_id>/charges/",
+        InvoiceChargeCreateAPIView.as_view(),
+        name="invoice-charge-create",
+    ),
+
+    path(
+        "invoices/<int:invoice_id>/charges/<int:charge_id>/",
+        InvoiceChargeDetailAPIView.as_view(),
+        name="invoice-charge-detail",
+    ),
 ]
