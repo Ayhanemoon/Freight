@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.db.models import Sum
 from django.utils import timezone
 
 from freight.models import (
@@ -34,7 +35,7 @@ def create_invoice(
         - Invoice is created
         - InvoiceParcel snapshot records are created
         - InvoiceCharge records are created
-        - Invoice.total_cost is calculated
+        - Invoice.total_cost is calculated from all charges
         - ShipmentOrder -> INVOICE_REGISTERED
         - ShipmentStatusHistory is created
     """
@@ -68,7 +69,7 @@ def create_invoice(
         parcels=parcels,
     )
 
-    total_cost = _calculate_total(charges)
+    _validate_charges(charges)
 
     invoice = Invoice.objects.create(
         order=order,
@@ -86,7 +87,9 @@ def create_invoice(
         receiver_mobile=order.receiver_mobile,
         receiver_address=order.receiver_address,
 
-        total_cost=total_cost,
+        # This is calculated after charges are created.
+        total_cost=Decimal("0"),
+
         notes=notes,
     )
 
@@ -99,6 +102,9 @@ def create_invoice(
         invoice=invoice,
         charges=charges,
     )
+
+    # Invoice total is always derived from InvoiceCharge records.
+    recalculate_invoice_total(invoice)
 
     previous_status = order.status
 
@@ -116,6 +122,36 @@ def create_invoice(
         to_status=ShipmentOrder.Status.INVOICE_REGISTERED,
         changed_by=operator,
         note=f"Invoice {invoice.invoice_number} registered.",
+    )
+
+    return invoice
+
+
+def recalculate_invoice_total(invoice):
+    """
+    Recalculate and persist the invoice total from its charges.
+
+    Invoice.total_cost is NOT the source of truth.
+
+    The source of truth is:
+
+        SUM(InvoiceCharge.amount)
+
+    This function should be called whenever invoice charges
+    are created, updated, or deleted.
+    """
+
+    total = invoice.charges.aggregate(
+        total=Sum("amount")
+    )["total"] or Decimal("0")
+
+    invoice.total_cost = total
+
+    invoice.save(
+        update_fields=[
+            "total_cost",
+            "updated_at",
+        ]
     )
 
     return invoice
@@ -180,9 +216,7 @@ def _validate_parcels(*, order, parcels):
         )
 
 
-def _calculate_total(charges):
-    total = Decimal("0")
-
+def _validate_charges(charges):
     for charge in charges:
         amount = charge["amount"]
 
@@ -190,10 +224,6 @@ def _calculate_total(charges):
             raise ValidationError(
                 "Invoice charge amount cannot be negative."
             )
-
-        total += amount
-
-    return total
 
 
 def _create_invoice_charges(*, invoice, charges):
