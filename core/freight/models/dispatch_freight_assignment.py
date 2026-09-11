@@ -1,3 +1,5 @@
+# models/dispatch_freight_assignment.py
+
 from django.conf import settings
 from django.db import models
 
@@ -7,10 +9,10 @@ from freight.models import DispatchOrder, FreightCompany
 class DispatchFreightAssignment(models.Model):
 
     class Status(models.TextChoices):
-        SELECTED = "selected", "Selected"
-        ACCEPTED = "accepted", "Accepted"
+        DISPATCHING = "dispatching", "Dispatching"
+        PENDING_APPROVAL = "pending_approval", "Pending Approval"
+        APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
-        DELIVERED = "delivered", "Delivered"
         CANCELLED = "cancelled", "Cancelled"
 
     class Payer(models.TextChoices):
@@ -32,7 +34,7 @@ class DispatchFreightAssignment(models.Model):
     status = models.CharField(
         max_length=30,
         choices=Status.choices,
-        default=Status.SELECTED,
+        default=Status.DISPATCHING,
     )
 
     payer = models.CharField(
@@ -70,12 +72,7 @@ class DispatchFreightAssignment(models.Model):
         auto_now_add=True,
     )
 
-    accepted_at = models.DateTimeField(
-        null=True,
-        blank=True,
-    )
-
-    delivered_at = models.DateTimeField(
+    approved_at = models.DateTimeField(
         null=True,
         blank=True,
     )

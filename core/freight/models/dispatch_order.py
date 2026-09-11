@@ -1,3 +1,5 @@
+# models/dispatch_order.py
+
 from django.db import models
 
 from freight.models import DispatchBatch, ShipmentOrder
@@ -9,10 +11,8 @@ class DispatchOrder(models.Model):
         PENDING = "pending", "Pending"
         IN_PROGRESS = "in_progress", "In Progress"
         DELIVERED = "delivered", "Delivered"
-        RETURNED = "returned", "Returned"
-        PENDING_APPROVAL = "pending_approval", "Pending Approval"
-        APPROVED = "approved", "Approved"
         REJECTED = "rejected", "Rejected"
+        RETURNED = "returned", "Returned"
         CANCELLED = "cancelled", "Cancelled"
 
     batch = models.ForeignKey(

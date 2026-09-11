@@ -1,3 +1,5 @@
+# models/dispatch_batch.py
+
 from django.conf import settings
 from django.db import models
 
@@ -8,13 +10,10 @@ class DispatchBatch(models.Model):
 
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"
-        READY = "ready", "Ready for Dispatch"
+        READY = "ready", "Ready"
         ASSIGNED = "assigned", "Assigned"
         IN_PROGRESS = "in_progress", "In Progress"
-        DELIVERED = "delivered", "Delivered"
-        PENDING_APPROVAL = "pending_approval", "Pending Approval"
-        APPROVED = "approved", "Approved"
-        REJECTED = "rejected", "Rejected"
+        COMPLETED = "completed", "Completed"
         CANCELLED = "cancelled", "Cancelled"
 
     branch = models.ForeignKey(
@@ -43,16 +42,6 @@ class DispatchBatch(models.Model):
     )
 
     dispatched_at = models.DateTimeField(
-        null=True,
-        blank=True,
-    )
-
-    delivered_at = models.DateTimeField(
-        null=True,
-        blank=True,
-    )
-
-    approved_at = models.DateTimeField(
         null=True,
         blank=True,
     )
