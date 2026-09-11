@@ -5,7 +5,8 @@ from freight.api.v1.views import (
     BranchViewSet,
     CustomerViewSet,
     FreightCompanyViewSet,
-    ShipmentOrderViewSet
+    ShipmentOrderViewSet,
+    ParcelViewSet,
 )
 
 app_name = "freight-api-v1"
@@ -34,6 +35,12 @@ router.register(
     r"shipment-orders",
     ShipmentOrderViewSet,
     basename="shipment-order",
+)
+
+router.register(
+    r"parcels",
+    ParcelViewSet,
+    basename="parcel",
 )
 
 urlpatterns = [
