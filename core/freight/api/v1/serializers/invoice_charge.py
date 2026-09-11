@@ -18,6 +18,7 @@ class InvoiceChargeSerializer(serializers.ModelSerializer):
 
         read_only_fields = [
             "id",
+            "invoice",
             "created_at",
         ]
 
