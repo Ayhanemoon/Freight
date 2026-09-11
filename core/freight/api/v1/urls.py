@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from freight.api.v1.views import (
     BranchViewSet,
     CustomerViewSet,
+    FreightCompanyViewSet,
 )
 
 app_name = "freight-api-v1"
@@ -22,6 +23,11 @@ router.register(
     basename="customer",
 )
 
+router.register(
+    r"freight-companies",
+    FreightCompanyViewSet,
+    basename="freight-company",
+)
 
 urlpatterns = [
     path("", include(router.urls)),
