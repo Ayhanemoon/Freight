@@ -3,3 +3,5 @@ from .customer import CustomerSerializer
 from .freight_company import FreightCompanySerializer
 from .shipment_order import ShipmentOrderSerializer
 from .parcel import ParcelSerializer
+from .invoice import InvoiceSerializer
+from .invoice_charge import InvoiceChargeSerializer
