@@ -8,3 +8,11 @@ from .invoice_charge import (
     InvoiceChargeCreateAPIView,
     InvoiceChargeDetailAPIView,
 )
+from .collection_task import (
+    CollectionTaskViewSet,
+    CollectionTaskAssignAPIView,
+    CollectionTaskVerifyParcelAPIView,
+    CollectionTaskCompleteAPIView,
+    CollectionTaskCancelAPIView,
+    CollectionTaskFailAPIView,
+)

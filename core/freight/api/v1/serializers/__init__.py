@@ -10,3 +10,9 @@ from .invoice_create import (
     InvoiceParcelInputSerializer,
     InvoiceCreateSerializer,
 )
+from .collection_task import (
+    CollectionTaskSerializer,
+    CollectionTaskAssignSerializer,
+    CollectionTaskStatusSerializer,
+    CollectionTaskVerifyParcelSerializer,
+)

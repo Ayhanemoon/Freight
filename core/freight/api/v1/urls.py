@@ -10,6 +10,12 @@ from freight.api.v1.views import (
     InvoiceViewSet,
     InvoiceChargeCreateAPIView,
     InvoiceChargeDetailAPIView,
+    CollectionTaskViewSet,
+    CollectionTaskAssignAPIView,
+    CollectionTaskVerifyParcelAPIView,
+    CollectionTaskCompleteAPIView,
+    CollectionTaskCancelAPIView,
+    CollectionTaskFailAPIView,
 )
 
 app_name = "freight-api-v1"
@@ -52,6 +58,12 @@ router.register(
     basename="invoice",
 )
 
+router.register(
+    r"collection-tasks",
+    CollectionTaskViewSet,
+    basename="collection-task",
+)
+
 urlpatterns = [
     path("", include(router.urls)),
     path(
@@ -64,5 +76,34 @@ urlpatterns = [
         "invoices/<int:invoice_id>/charges/<int:charge_id>/",
         InvoiceChargeDetailAPIView.as_view(),
         name="invoice-charge-detail",
+    ),
+    path(
+        "collection-tasks/<int:task_id>/assign/",
+        CollectionTaskAssignAPIView.as_view(),
+        name="collection-task-assign",
+    ),
+
+    path(
+        "collection-tasks/<int:task_id>/verify-parcel/",
+        CollectionTaskVerifyParcelAPIView.as_view(),
+        name="collection-task-verify-parcel",
+    ),
+
+    path(
+        "collection-tasks/<int:task_id>/complete/",
+        CollectionTaskCompleteAPIView.as_view(),
+        name="collection-task-complete",
+    ),
+
+    path(
+        "collection-tasks/<int:task_id>/cancel/",
+        CollectionTaskCancelAPIView.as_view(),
+        name="collection-task-cancel",
+    ),
+
+    path(
+        "collection-tasks/<int:task_id>/fail/",
+        CollectionTaskFailAPIView.as_view(),
+        name="collection-task-fail",
     ),
 ]
