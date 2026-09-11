@@ -35,7 +35,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["email", "password", "password1"]
+        fields = ["mobile", "password", "password1"]
 
     def validate(self, attrs):
         if attrs.get("password") != attrs.get("password1"):
@@ -54,13 +54,13 @@ class RegisterSerializer(serializers.ModelSerializer):
 class ProfileSerializer(serializers.ModelSerializer):
     """Profile serializer to manage extra user info"""
 
-    email = serializers.EmailField(source="user.mobile", read_only=True)
+    mobile = serializers.CharField(source="user.mobile", read_only=True)
 
     class Meta:
         model = Profile
         fields = [
             "id",
-            "email",
+            "mobile",
             "first_name",
             "last_name",
             "image",
@@ -110,22 +110,22 @@ class EmailVerificationSerializer(serializers.ModelSerializer):
 
 
 class ObtainTokenSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(min_length=6, write_only=True)
+    mobile = serializers.CharField(min_length=10, max_length=15, write_only=True)
     password = serializers.CharField(max_length=68, min_length=6, write_only=True)
 
     class Meta:
         model = User
-        fields = ["email", "password"]
+        fields = ["mobile", "password"]
 
     def validate(self, attrs):
-        email = attrs.get("email", "")
+        mobile = attrs.get("mobile", "")
         password = attrs.get("password", "")
-        filtered_user_by_email = User.objects.filter(email=email)
-        user = auth.authenticate(email=email, password=password)
+        filtered_user_by_mobile = User.objects.filter(mobile=mobile)
+        user = auth.authenticate(mobile=mobile, password=password)
 
-        if filtered_user_by_email.exists() and filtered_user_by_email[0].auth_provider != "email":
+        if filtered_user_by_mobile.exists() and filtered_user_by_mobile[0].auth_provider != "email":
             raise AuthenticationFailed(
-                detail=f"Please continue your login using {filtered_user_by_email[0].auth_provider}"
+                detail=f"Please continue your login using {filtered_user_by_mobile[0].auth_provider}"
             )
 
         if not user:
@@ -133,28 +133,28 @@ class ObtainTokenSerializer(serializers.ModelSerializer):
         if not user.is_active:
             raise AuthenticationFailed("Account disabled, contact admin")
         if not user.is_mobile_verified:
-            raise AuthenticationFailed("mobile is not verified")
+            raise AuthenticationFailed("Mobile is not verified")
         attrs["user"] = user
         return super().validate(attrs)
 
 
 class JWTObtainPairTokenSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(min_length=6, write_only=True)
+    mobile = serializers.CharField(min_length=10, max_length=15, write_only=True)
     password = serializers.CharField(max_length=68, min_length=6, write_only=True)
 
     class Meta:
         model = User
-        fields = ["email", "password"]
+        fields = ["mobile", "password"]
 
     def validate(self, attrs):
-        email = attrs.get("email", "")
+        mobile = attrs.get("mobile", "")
         password = attrs.get("password", "")
-        filtered_user_by_email = User.objects.filter(email=email)
-        user = auth.authenticate(email=email, password=password)
+        filtered_user_by_mobile = User.objects.filter(mobile=mobile)
+        user = auth.authenticate(mobile=mobile, password=password)
 
-        if filtered_user_by_email.exists() and filtered_user_by_email[0].auth_provider != "email":
+        if filtered_user_by_mobile.exists() and filtered_user_by_mobile[0].auth_provider != "email":
             raise AuthenticationFailed(
-                detail=f"Please continue your login using {filtered_user_by_email[0].auth_provider}"
+                detail=f"Please continue your login using {filtered_user_by_mobile[0].auth_provider}"
             )
 
         if not user:
@@ -162,21 +162,21 @@ class JWTObtainPairTokenSerializer(serializers.ModelSerializer):
         if not user.is_active:
             raise AuthenticationFailed("Account disabled, contact admin")
         if not user.is_mobile_verified:
-            raise AuthenticationFailed("Email is not verified")
+            raise AuthenticationFailed("Mobile is not verified")
         attrs["user"] = user
         return super().validate(attrs)
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
-        email = attrs.get("email", "")
+        mobile = attrs.get("mobile", "")
         password = attrs.get("password", "")
-        filtered_user_by_email = User.objects.filter(email=email)
-        user = auth.authenticate(email=email, password=password)
+        filtered_user_by_mobile = User.objects.filter(mobile=mobile)
+        user = auth.authenticate(mobile=mobile, password=password)
 
-        if filtered_user_by_email.exists() and filtered_user_by_email[0].auth_provider != "email":
+        if filtered_user_by_mobile.exists() and filtered_user_by_mobile[0].auth_provider != "email":
             raise AuthenticationFailed(
-                detail=f"Please continue your login using {filtered_user_by_email[0].auth_provider}"
+                detail=f"Please continue your login using {filtered_user_by_mobile[0].auth_provider}"
             )
 
         if not user:
@@ -193,18 +193,18 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 
 class ResendVerifyTokenSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(min_length=6, write_only=True)
+    mobile = serializers.CharField(min_length=10, max_length=15, write_only=True)
 
     class Meta:
         model = User
-        fields = ["email"]
+        fields = ["mobile"]
 
     def validate(self, attrs):
         try:
-            user = get_object_or_404(User, email=attrs.get("email"))
+            user = get_object_or_404(User, mobile=attrs.get("mobile"))
         except User.DoesNotExist:
             raise serializers.ValidationError(
-                {"details": "User with given email does not exist"}
+                {"details": "User with given mobile does not exist"}
             )
         if user.is_mobile_verified:
             raise serializers.ValidationError({"details": "User already verified"})
@@ -212,18 +212,18 @@ class ResendVerifyTokenSerializer(serializers.ModelSerializer):
         return attrs
 
 
-class PasswordResetRequestEmailSerializer(serializers.Serializer):
-    email = serializers.EmailField(min_length=2)
+class PasswordResetRequestMobileSerializer(serializers.Serializer):
+    mobile = serializers.CharField(min_length=10, max_length=15)
 
     class Meta:
-        fields = ["email"]
+        fields = ["mobile"]
 
     def validate(self, attrs):
         try:
-            user = User.objects.get(email=attrs["email"])
+            user = User.objects.get(mobile=attrs["mobile"])
         except User.DoesNotExist:
             raise ValidationError(
-                {"detail": "There is no user with provided email"},
+                {"detail": "There is no user with provided mobile"},
             )
         attrs["user"] = user
         return super().validate(attrs)

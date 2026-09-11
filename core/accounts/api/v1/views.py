@@ -15,7 +15,7 @@ from .serializers import (
     ObtainTokenSerializer,
     JWTObtainPairTokenSerializer,
     ResendVerifyTokenSerializer,
-    PasswordResetRequestEmailSerializer,
+    PasswordResetRequestMobileSerializer,
     PasswordResetTokenVerificationSerializer,
     SetNewPasswordSerializer,
 )
@@ -161,7 +161,7 @@ class JWTObtainPairTokenApiView(generics.CreateAPIView):
                 "access": str(refresh.access_token),
                 "refresh": str(refresh),
                 "user_id": user.pk,
-                "email": user.mobile,
+                "mobile": user.mobile,
             }
         )
 
@@ -196,7 +196,7 @@ class ResendVerifyEmailApiView(generics.GenericAPIView):
 
 
 class PasswordResetRequestEmailApiView(generics.GenericAPIView):
-    serializer_class = PasswordResetRequestEmailSerializer
+    serializer_class = PasswordResetRequestMobileSerializer
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
