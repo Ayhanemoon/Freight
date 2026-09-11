@@ -39,6 +39,18 @@ class InvoiceViewSet(
         .all()
     )
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        user = self.request.user
+
+        if user.is_superuser:
+            return queryset
+
+        return queryset.filter(
+            order__branch_id=user.branch_id,
+        )
+
     def create(self, request, *args, **kwargs):
         input_serializer = InvoiceCreateSerializer(
             data=request.data,
