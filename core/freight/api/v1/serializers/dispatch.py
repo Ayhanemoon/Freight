@@ -133,14 +133,6 @@ class DispatchFreightAssignmentCreateSerializer(serializers.Serializer):
         choices=DispatchFreightAssignment.Payer.choices,
     )
 
-    freight_amount = serializers.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        min_value=0,
-        required=False,
-        allow_null=True,
-    )
-
 
 class DispatchStatusSerializer(serializers.Serializer):
     notes = serializers.CharField(
