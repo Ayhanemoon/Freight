@@ -16,3 +16,15 @@ from .collection_task import (
     CollectionTaskStatusSerializer,
     CollectionTaskVerifyParcelSerializer,
 )
+from .dispatch import (
+    DispatchBatchSerializer,
+    DispatchBatchCreateSerializer,
+    DispatchOrderSerializer,
+    DispatchOrderCreateSerializer,
+    DispatchFreightAssignmentSerializer,
+    DispatchFreightAssignmentCreateSerializer,
+    DispatchAssignDispatcherSerializer,
+    DispatchStatusSerializer,
+    DispatchRejectSerializer,
+    DispatchDeliveredSerializer,
+)
