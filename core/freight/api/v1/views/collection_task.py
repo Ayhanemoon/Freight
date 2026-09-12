@@ -22,6 +22,23 @@ from freight.services.collection import (
     verify_parcel,
 )
 
+def get_collection_task_for_user(task_id, user):
+    queryset = CollectionTask.objects.select_related(
+        "order",
+        "order__branch",
+        "order__customer",
+        "collector",
+    )
+
+    if not user.is_superuser:
+        queryset = queryset.filter(
+            order__branch=user.branch
+        )
+
+    return get_object_or_404(
+        queryset,
+        pk=task_id,
+    )
 
 class CollectionTaskViewSet(
     ListModelMixin,
@@ -56,18 +73,16 @@ class CollectionTaskViewSet(
         return queryset.filter(
             order__branch=user.branch
         )
+    
 
 
 class CollectionTaskAssignAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, task_id):
-        task = get_object_or_404(
-            CollectionTask.objects.select_related(
-                "order",
-                "order__branch",
-            ),
-            pk=task_id,
+        task = get_collection_task_for_user(
+            task_id=task_id,
+            user=request.user,
         )
 
         serializer = CollectionTaskAssignSerializer(
@@ -96,13 +111,9 @@ class CollectionTaskVerifyParcelAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, task_id):
-        task = get_object_or_404(
-            CollectionTask.objects.select_related(
-                "order",
-                "order__branch",
-                "collector",
-            ),
-            pk=task_id,
+        task = get_collection_task_for_user(
+            task_id=task_id,
+            user=request.user,
         )
 
         serializer = CollectionTaskVerifyParcelSerializer(
@@ -144,13 +155,9 @@ class CollectionTaskCompleteAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, task_id):
-        task = get_object_or_404(
-            CollectionTask.objects.select_related(
-                "order",
-                "order__branch",
-                "collector",
-            ),
-            pk=task_id,
+        task = get_collection_task_for_user(
+            task_id=task_id,
+            user=request.user,
         )
 
         try:
@@ -174,13 +181,9 @@ class CollectionTaskCancelAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, task_id):
-        task = get_object_or_404(
-            CollectionTask.objects.select_related(
-                "order",
-                "order__branch",
-                "collector",
-            ),
-            pk=task_id,
+        task = get_collection_task_for_user(
+            task_id=task_id,
+            user=request.user,
         )
 
         serializer = CollectionTaskStatusSerializer(
@@ -211,13 +214,9 @@ class CollectionTaskFailAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, task_id):
-        task = get_object_or_404(
-            CollectionTask.objects.select_related(
-                "order",
-                "order__branch",
-                "collector",
-            ),
-            pk=task_id,
+        task = get_collection_task_for_user(
+            task_id=task_id,
+            user=request.user,
         )
 
         serializer = CollectionTaskStatusSerializer(
