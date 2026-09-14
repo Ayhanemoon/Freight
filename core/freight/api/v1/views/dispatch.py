@@ -11,7 +11,6 @@ from rest_framework.mixins import (
     ListModelMixin,
     RetrieveModelMixin,
 )
-from rest_framework.pagination import PageNumberPagination
 
 from freight.api.v1.serializers.dispatch import (
     DispatchAssignDispatcherSerializer,
@@ -129,9 +128,6 @@ def get_dispatch_assignment_for_user(assignment_id, user):
         pk=assignment_id,
     )
 
-class DispatchBatchPagination(PageNumberPagination):
-    page_size = 20
-
 class DispatchBatchViewSet(
     CreateModelMixin,
     ListModelMixin,
@@ -140,7 +136,6 @@ class DispatchBatchViewSet(
 ):
     serializer_class = DispatchBatchSerializer
     permission_classes = [IsAuthenticated]
-    pagination_class = DispatchBatchPagination
 
     queryset = (
         DispatchBatch.objects
