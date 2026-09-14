@@ -158,6 +158,12 @@ def add_order_to_batch(
         branch_id=batch.branch_id,
     )
 
+    if order.branch_id != batch.branch_id:
+        raise PermissionDenied(
+            "A shipment order can only be added to a "
+            "dispatch batch from the same branch."
+        )
+
     if batch.status != DispatchBatch.Status.DRAFT:
         raise ValidationError(
             "Orders can only be added to a draft dispatch batch."

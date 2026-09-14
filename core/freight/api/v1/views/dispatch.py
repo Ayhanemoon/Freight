@@ -6,7 +6,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
-from rest_framework.mixins import ListModelMixin, RetrieveModelMixin
+from rest_framework.mixins import (
+    CreateModelMixin,
+    ListModelMixin,
+    RetrieveModelMixin,
+)
+from rest_framework.pagination import PageNumberPagination
 
 from freight.api.v1.serializers.dispatch import (
     DispatchAssignDispatcherSerializer,
@@ -124,14 +129,18 @@ def get_dispatch_assignment_for_user(assignment_id, user):
         pk=assignment_id,
     )
 
+class DispatchBatchPagination(PageNumberPagination):
+    page_size = 20
 
 class DispatchBatchViewSet(
+    CreateModelMixin,
     ListModelMixin,
     RetrieveModelMixin,
     GenericViewSet,
 ):
     serializer_class = DispatchBatchSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = DispatchBatchPagination
 
     queryset = (
         DispatchBatch.objects
@@ -156,6 +165,40 @@ class DispatchBatchViewSet(
 
         return self.queryset.filter(
             branch=user.branch
+        )
+
+    def create(self, request, *args, **kwargs):
+        serializer = DispatchBatchCreateSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+
+        branch = get_object_or_404(
+            Branch,
+            pk=serializer.validated_data["branch"],
+        )
+
+        try:
+            batch = create_dispatch_batch(
+                branch=branch,
+                created_by=request.user,
+                scheduled_at=serializer.validated_data.get(
+                    "scheduled_at"
+                ),
+                notes=serializer.validated_data.get(
+                    "notes",
+                    "",
+                ),
+            )
+        except ValidationError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            DispatchBatchSerializer(batch).data,
+            status=status.HTTP_201_CREATED,
         )
 
 
@@ -304,7 +347,7 @@ class DispatchAddOrderAPIView(APIView):
 class DispatchRemoveOrderAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, dispatch_order_id):
+    def delete(self, request, dispatch_order_id):
         dispatch_order = get_dispatch_order_for_user(
             dispatch_order_id=dispatch_order_id,
             user=request.user,
@@ -322,10 +365,7 @@ class DispatchRemoveOrderAPIView(APIView):
             )
 
         return Response(
-            {
-                "detail": "Order removed from dispatch batch."
-            },
-            status=status.HTTP_200_OK,
+            status=status.HTTP_204_NO_CONTENT,
         )
 
 

@@ -115,7 +115,6 @@ router.register(
 
 # Define additional URL patterns for non-viewset views
 urlpatterns = [
-    path("", include(router.urls)),
     # Additional URL patterns for invoice charges
     path(
         "invoices/<int:invoice_id>/charges/",
@@ -249,4 +248,6 @@ urlpatterns = [
         DispatchCancelAssignmentAPIView.as_view(),
         name="dispatch-assignment-cancel",
     ),
+    # Include the router URLs for viewsets
+    path("", include(router.urls)),
 ]
