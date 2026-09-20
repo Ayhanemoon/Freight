@@ -86,8 +86,15 @@ def exception_handler(exc, context):
 
     # Not found
     if response.status_code == status.HTTP_404_NOT_FOUND:
+        code = getattr(exc, "default_code", None)
+
+        if code == ErrorCode.INVALID_PAGE:
+            error_code = ErrorCode.INVALID_PAGE
+        else:
+            error_code = ErrorCode.NOT_FOUND
+
         response.data = {
-            "code": ErrorCode.NOT_FOUND,
+            "code": error_code,
             "detail": str(response.data.get("detail", "")),
         }
         return response

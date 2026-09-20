@@ -14,6 +14,11 @@ from django.conf import settings
 class RegisterSerializer(serializers.ModelSerializer):
     """Registration serializer with password checkup"""
 
+    mobile = serializers.CharField(
+        required=True,
+        write_only=True,
+    )
+
     password = serializers.CharField(
         max_length=68,
         min_length=6,
@@ -36,6 +41,12 @@ class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["mobile", "password", "password1"]
+
+    def validate_mobile(self, value):
+        try:
+            return User.objects.normalize_mobile(value)
+        except (ValueError, ValidationError) as exc:
+            raise serializers.ValidationError(str(exc))
 
     def validate(self, attrs):
         if attrs.get("password") != attrs.get("password1"):
@@ -125,6 +136,12 @@ class ObtainTokenSerializer(serializers.ModelSerializer):
         model = User
         fields = ["mobile", "password"]
 
+    def validate_mobile(self, value):
+        try:
+            return User.objects.normalize_mobile(value)
+        except (ValueError, ValidationError) as exc:
+            raise serializers.ValidationError(str(exc))
+
     def validate(self, attrs):
         mobile = attrs.get("mobile", "")
         password = attrs.get("password", "")
@@ -174,6 +191,12 @@ class JWTObtainPairTokenSerializer(serializers.ModelSerializer):
         model = User
         fields = ["mobile", "password"]
 
+    def validate_mobile(self, value):
+        try:
+            return User.objects.normalize_mobile(value)
+        except (ValueError, ValidationError) as exc:
+            raise serializers.ValidationError(str(exc))
+
     def validate(self, attrs):
         mobile = attrs.get("mobile", "")
         password = attrs.get("password", "")
@@ -211,6 +234,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         mobile = attrs.get("mobile", "")
         password = attrs.get("password", "")
+
+        try:
+            mobile = User.objects.normalize_mobile(mobile)
+        except (ValueError, ValidationError) as exc:
+            raise serializers.ValidationError({"mobile": str(exc)})
 
         user = auth.authenticate(
             mobile=mobile,
@@ -251,6 +279,12 @@ class ResendVerifyTokenSerializer(serializers.ModelSerializer):
         model = User
         fields = ["mobile"]
 
+    def validate_mobile(self, value):
+        try:
+            return User.objects.normalize_mobile(value)
+        except (ValueError, ValidationError) as exc:
+            raise serializers.ValidationError(str(exc))
+
     def validate(self, attrs):
         try:
             user = get_object_or_404(User, mobile=attrs.get("mobile"))
@@ -269,6 +303,12 @@ class PasswordResetRequestMobileSerializer(serializers.Serializer):
 
     class Meta:
         fields = ["mobile"]
+
+    def validate_mobile(self, value):
+        try:
+            return User.objects.normalize_mobile(value)
+        except (ValueError, ValidationError) as exc:
+            raise serializers.ValidationError(str(exc))
 
     def validate(self, attrs):
         try:

@@ -10,6 +10,7 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.permissions import AllowAny
 from rest_framework.authtoken.models import Token
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.exceptions import AuthenticationFailed
 from .serializers import (
     RegisterSerializer,
     EmailVerificationSerializer,
@@ -161,7 +162,13 @@ class JWTObtainPairTokenApiView(generics.CreateAPIView):
         serializer = self.serializer_class(
             data=request.data, context={"request": request}
         )
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except AuthenticationFailed as exc:
+            return Response(
+                {"detail": str(exc.detail)},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
         user = serializer.validated_data["user"]
         refresh = RefreshToken.for_user(user)
         access = refresh.access_token
