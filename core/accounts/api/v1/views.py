@@ -284,7 +284,13 @@ class UserListApiView(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
 
-        queryset = User.objects.select_related("branch").all()
+        queryset = (
+            User.objects
+            .select_related("branch")
+            .order_by("id")
+        )
+
+
 
         if user.is_superuser:
             return queryset

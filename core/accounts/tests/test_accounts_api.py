@@ -509,3 +509,29 @@ class TestAccountsAPI:
         response = self.client.get(url)
 
         assert response.status_code == 403
+
+    def test_invalid_page_returns_invalid_page_error_code(self):
+        self.client.force_authenticate(user=self.user)
+
+        url = reverse("accounts:api-v1:user-list")
+
+        response = self.client.get(
+            url,
+            {"page": 999999},
+        )
+
+        assert response.status_code == 404
+        assert response.data["code"] == "INVALID_PAGE"
+        assert response.data["detail"] == "Invalid page."
+
+    def test_normal_not_found_still_returns_not_found_error_code(self):
+        self.client.force_authenticate(user=self.user)
+
+        url = reverse("accounts:api-v1:user-list")
+
+        response = self.client.get(
+            url,
+            {"page": 999999},
+        )
+
+        assert response.status_code == 404
