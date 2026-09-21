@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from accounts.models import User, Profile
+from freight.models import Branch
 from django.contrib.auth import get_user_model
 from django.contrib import auth
 from rest_framework.exceptions import AuthenticationFailed
@@ -365,11 +366,16 @@ class SetNewPasswordSerializer(serializers.Serializer):
         except Exception:
             raise AuthenticationFailed("The reset link is invalid", 401)
 
+class BranchSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Branch
+        fields = [
+            "id",
+            "name",
+        ]
+
 class UserListSerializer(serializers.ModelSerializer):
-    branch_name = serializers.CharField(
-        source="branch.name",
-        read_only=True,
-    )
+    branch = BranchSummarySerializer(read_only=True)
 
     class Meta:
         model = User
@@ -378,10 +384,111 @@ class UserListSerializer(serializers.ModelSerializer):
             "mobile",
             "email",
             "branch",
-            "branch_name",
             "is_active",
             "is_mobile_verified",
             "auth_provider",
             "created_at",
             "updated_at",
         ]
+
+class UserCreateSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(
+        min_length=6,
+        max_length=68,
+        write_only=True,
+        required=True,
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            "mobile",
+            "email",
+            "branch",
+            "password",
+            "is_active",
+            "is_mobile_verified",
+        ]
+
+    def validate_mobile(self, value):
+        try:
+            return User.objects.normalize_mobile(value)
+        except (ValueError, ValidationError) as exc:
+            raise serializers.ValidationError(str(exc))
+
+    def validate_branch(self, branch):
+        request = self.context.get("request")
+
+        if (
+            request
+            and request.user.is_authenticated
+            and not request.user.is_superuser
+            and branch != request.user.branch
+        ):
+            raise serializers.ValidationError(
+                "You can only create users in your own branch."
+            )
+
+        return branch
+
+    def create(self, validated_data):
+        password = validated_data.pop("password")
+
+        return User.objects.create_user(
+            password=password,
+            auth_provider="mobile",
+            **validated_data,
+        )
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(
+        min_length=6,
+        max_length=68,
+        write_only=True,
+        required=False,
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            "mobile",
+            "email",
+            "branch",
+            "password",
+            "is_active",
+            "is_mobile_verified",
+        ]
+
+    def validate_mobile(self, value):
+        try:
+            return User.objects.normalize_mobile(value)
+        except (ValueError, ValidationError) as exc:
+            raise serializers.ValidationError(str(exc))
+
+    def validate_branch(self, branch):
+        request = self.context.get("request")
+
+        if (
+            request
+            and request.user.is_authenticated
+            and not request.user.is_superuser
+            and branch != request.user.branch
+        ):
+            raise serializers.ValidationError(
+                "You can only assign users to your own branch."
+            )
+
+        return branch
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop("password", None)
+
+        if password:
+            instance.set_password(password)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+
+        return instance

@@ -11,7 +11,8 @@ from .views import (
     DiscardAuthTokenApiView,
     JWTObtainPairTokenApiView,
     ProfileApiView,
-    UserListApiView,
+    UserListCreateApiView,
+    UserDetailUpdateApiView,
 )
 from rest_framework_simplejwt.views import (
     TokenRefreshView,
@@ -69,7 +70,12 @@ urlpatterns = [
     path("profile/", ProfileApiView.as_view(), name="profile"),
     path(
         "users/",
-        UserListApiView.as_view(),
-        name="user-list",
+        UserListCreateApiView.as_view(),
+        name="user-list-create",
+    ),
+    path(
+        "users/<int:pk>/",
+        UserDetailUpdateApiView.as_view(),
+        name="user-detail-update",
     ),
 ]

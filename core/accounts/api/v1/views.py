@@ -23,8 +23,14 @@ from .serializers import (
     PasswordResetTokenVerificationSerializer,
     SetNewPasswordSerializer,
     UserListSerializer,
+    UserCreateSerializer,
+    UserUpdateSerializer,
 )
-from .permissions import CanViewUsers
+from .permissions import (
+    CanViewUsers,
+    CanCreateUsers,
+    CanManageUsers,
+)
 from django.utils import timezone
 from ..utils import Util
 from datetime import datetime
@@ -277,9 +283,20 @@ class PasswordResetSetNewApiView(generics.GenericAPIView):
             status=status.HTTP_200_OK,
         )
 
-class UserListApiView(generics.ListAPIView):
-    serializer_class = UserListSerializer
-    permission_classes = [CanViewUsers]
+class UserListCreateApiView(generics.ListCreateAPIView):
+    queryset = User.objects.select_related("branch").order_by("id")
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [CanCreateUsers()]
+
+        return [CanViewUsers()]
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return UserCreateSerializer
+
+        return UserListSerializer
 
     def get_queryset(self):
         user = self.request.user
@@ -290,9 +307,32 @@ class UserListApiView(generics.ListAPIView):
             .order_by("id")
         )
 
+        if user.is_superuser:
+            return queryset
 
+        return queryset.filter(branch=user.branch)
+
+class UserDetailUpdateApiView(generics.RetrieveUpdateAPIView):
+    permission_classes = [CanManageUsers]
+
+    queryset = (
+        User.objects
+        .select_related("branch")
+        .all()
+    )
+
+    def get_queryset(self):
+        user = self.request.user
+
+        queryset = self.queryset.order_by("id")
 
         if user.is_superuser:
             return queryset
 
         return queryset.filter(branch=user.branch)
+
+    def get_serializer_class(self):
+        if self.request.method in ("PUT", "PATCH"):
+            return UserUpdateSerializer
+
+        return UserListSerializer
