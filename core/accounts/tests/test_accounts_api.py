@@ -511,6 +511,14 @@ class TestAccountsAPI:
         assert response.status_code == 403
 
     def test_invalid_page_returns_invalid_page_error_code(self):
+        permission = Permission.objects.get(
+            codename="view_user",
+            content_type__app_label="accounts",
+        )
+
+        group = Group.objects.create(name="User Viewer")
+        group.permissions.add(permission)
+        self.user.groups.add(group)
         self.client.force_authenticate(user=self.user)
 
         url = reverse("accounts:api-v1:user-list")
@@ -525,6 +533,14 @@ class TestAccountsAPI:
         assert response.data["detail"] == "Invalid page."
 
     def test_normal_not_found_still_returns_not_found_error_code(self):
+        permission = Permission.objects.get(
+            codename="view_user",
+            content_type__app_label="accounts",
+        )
+
+        group = Group.objects.create(name="User Viewer")
+        group.permissions.add(permission)
+        self.user.groups.add(group)
         self.client.force_authenticate(user=self.user)
 
         url = reverse("accounts:api-v1:user-list")
