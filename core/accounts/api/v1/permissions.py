@@ -13,10 +13,7 @@ class CanViewUsers(BasePermission):
         if user.is_superuser:
             return True
 
-        return user.groups.filter(
-            permissions__codename="view_user",
-            permissions__content_type__app_label="accounts",
-        ).exists()
+        return user.has_perm("accounts.view_user")
 
 class CanCreateUsers(BasePermission):
     message = "You do not have permission to create users."
@@ -30,10 +27,7 @@ class CanCreateUsers(BasePermission):
         if user.is_superuser:
             return True
 
-        return user.groups.filter(
-            permissions__codename="add_user",
-            permissions__content_type__app_label="accounts",
-        ).exists()
+        return user.has_perm("accounts.add_user")
 
 
 class CanManageUsers(BasePermission):
@@ -48,10 +42,7 @@ class CanManageUsers(BasePermission):
         if user.is_superuser:
             return True
 
-        return user.groups.filter(
-            permissions__codename="change_user",
-            permissions__content_type__app_label="accounts",
-        ).exists()
+        return user.has_perm("accounts.change_user")
 
     def has_object_permission(self, request, view, obj):
         user = request.user

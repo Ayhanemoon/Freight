@@ -2,7 +2,8 @@ import pytest
 
 from django.contrib.auth.models import Group, Permission
 from django.urls import reverse
-from rest_framework.test import APIClient
+from rest_framework import status
+from rest_framework.test import APIClient, APITestCase
 
 from accounts.models import Profile, User
 from freight.models import Branch
@@ -551,3 +552,286 @@ class TestAccountsAPI:
         )
 
         assert response.status_code == 404
+
+
+@pytest.mark.django_db
+class TestAccountsUserCRUDAPI(APITestCase):
+    #--------------------------------------------------
+    # Setup
+    #--------------------------------------------------
+    def setUp(self):
+        self.branch = Branch.objects.create(
+            name="Tehran Center",
+            code="THR",
+            city="Tehran",
+        )
+
+        self.other_branch = Branch.objects.create(
+            name="Shiraz Center",
+            code="SHZ",
+            city="Shiraz",
+        )
+
+        self.superuser = User.objects.create_superuser(
+            mobile="+989123698547",
+            password="testpass123",
+            branch=self.branch,
+        )
+
+        self.branch_manager = User.objects.create_user(
+            mobile="+989142563987",
+            password="testpass123",
+            branch=self.branch,
+        )
+
+        self.other_branch_user = User.objects.create_user(
+            mobile="+989356214789",
+            password="testpass123",
+            branch=self.other_branch,
+        )
+
+        self.user = User.objects.create_user(
+            mobile="+989152436987",
+            password="testpass123",
+            branch=self.branch,
+        )
+
+        self.list_url = reverse("accounts:api-v1:user-list-create")
+
+    #--------------------------------------------------
+    # Helpers
+    #--------------------------------------------------
+    def detail_url(self, user):
+        return reverse(
+            "accounts:api-v1:user-detail-update-delete",
+            kwargs={"pk": user.pk},
+        )
+
+    def authenticate(self, user):
+        self.client.force_authenticate(user=user)
+
+    def grant_permission(self, user, codename):
+        from django.contrib.auth.models import Permission
+
+        permission = Permission.objects.get(
+            codename=codename,
+            content_type__app_label="accounts",
+        )
+
+        user.user_permissions.add(permission)
+
+    #--------------------------------------------------
+    # Create Tests
+    #--------------------------------------------------
+    def test_superuser_can_create_user(self):
+        self.authenticate(self.superuser)
+
+        response = self.client.post(
+            self.list_url,
+            {
+                "mobile": "09351112233",
+                "email": "new@example.com",
+                "branch": self.other_branch.id,
+                "password": "newpassword123",
+                "is_active": True,
+                "is_mobile_verified": False,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+            response.data,
+        )
+
+        user = User.objects.get(mobile="+989351112233")
+
+        self.assertEqual(user.email, "new@example.com")
+        self.assertEqual(user.branch, self.other_branch)
+        self.assertTrue(user.check_password("newpassword123"))
+
+    def test_user_with_add_permission_can_create_user(self):
+        self.grant_permission(self.branch_manager, "add_user")
+
+        self.authenticate(self.branch_manager)
+
+        response = self.client.post(
+            self.list_url,
+            {
+                "mobile": "09351112244",
+                "email": "",
+                "branch": self.branch.id,
+                "password": "newpassword123",
+                "is_active": True,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        user = User.objects.get(mobile="+989351112244")
+
+        self.assertEqual(user.branch, self.branch)
+        self.assertTrue(user.check_password("newpassword123"))
+
+    def test_user_without_add_permission_cannot_create_user(self):
+        self.authenticate(self.branch_manager)
+
+        response = self.client.post(
+            self.list_url,
+            {
+                "mobile": "09351112255",
+                "password": "newpassword123",
+                "branch": self.branch.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_branch_user_cannot_create_user_in_other_branch(self):
+        self.grant_permission(self.branch_manager, "add_user")
+
+        self.authenticate(self.branch_manager)
+
+        response = self.client.post(
+            self.list_url,
+            {
+                "mobile": "09351112266",
+                "password": "newpassword123",
+                "branch": self.other_branch.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_unauthenticated_user_cannot_create_user(self):
+        response = self.client.post(
+            self.list_url,
+            {
+                "mobile": "09351112277",
+                "password": "newpassword123",
+                "branch": self.branch.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+    #--------------------------------------------------
+    # Update Tests
+    #--------------------------------------------------
+    def test_superuser_can_update_user(self):
+        self.authenticate(self.superuser)
+
+        response = self.client.patch(
+            self.detail_url(self.user),
+            {
+                "email": "updated@example.com",
+                "is_active": False,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+
+        self.assertEqual(self.user.email, "updated@example.com")
+        self.assertFalse(self.user.is_active)
+
+    def test_user_with_change_permission_can_update_same_branch_user(self):
+        self.grant_permission(self.branch_manager, "change_user")
+
+        self.authenticate(self.branch_manager)
+
+        response = self.client.patch(
+            self.detail_url(self.user),
+            {
+                "email": "branch-updated@example.com",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+
+        self.assertEqual(
+            self.user.email,
+            "branch-updated@example.com",
+        )
+
+    def test_user_without_change_permission_cannot_update_user(self):
+        self.authenticate(self.branch_manager)
+
+        response = self.client.patch(
+            self.detail_url(self.user),
+            {
+                "email": "not-allowed@example.com",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_branch_user_cannot_update_other_branch_user(self):
+        self.grant_permission(self.branch_manager, "change_user")
+
+        self.authenticate(self.branch_manager)
+
+        response = self.client.patch(
+            self.detail_url(self.other_branch_user),
+            {
+                "email": "not-allowed@example.com",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        self.other_branch_user.refresh_from_db()
+
+        self.assertNotEqual(
+            self.other_branch_user.email,
+            "not-allowed@example.com",
+        )
+
+    def test_user_password_can_be_updated(self):
+        self.authenticate(self.superuser)
+
+        response = self.client.patch(
+            self.detail_url(self.user),
+            {
+                "password": "updated-password-123",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+
+        self.assertTrue(
+            self.user.check_password("updated-password-123")
+        )
+        self.assertFalse(
+            self.user.check_password("testpass123")
+        )

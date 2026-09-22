@@ -392,6 +392,11 @@ class UserListSerializer(serializers.ModelSerializer):
         ]
 
 class UserCreateSerializer(serializers.ModelSerializer):
+    mobile = serializers.CharField(
+        required=True,
+        max_length=20,
+    )
+
     password = serializers.CharField(
         min_length=6,
         max_length=68,
@@ -441,6 +446,11 @@ class UserCreateSerializer(serializers.ModelSerializer):
         )
 
 class UserUpdateSerializer(serializers.ModelSerializer):
+    mobile = serializers.CharField(
+        required=False,
+        max_length=20,
+    )
+    
     password = serializers.CharField(
         min_length=6,
         max_length=68,

@@ -312,7 +312,7 @@ class UserListCreateApiView(generics.ListCreateAPIView):
 
         return queryset.filter(branch=user.branch)
 
-class UserDetailUpdateApiView(generics.RetrieveUpdateAPIView):
+class UserDetailUpdateDeleteApiView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [CanManageUsers]
 
     queryset = (
@@ -322,14 +322,15 @@ class UserDetailUpdateApiView(generics.RetrieveUpdateAPIView):
     )
 
     def get_queryset(self):
-        user = self.request.user
+        return self.queryset.order_by("id")
 
-        queryset = self.queryset.order_by("id")
+    def has_object_permission(self, request, view, obj):
+        user = request.user
 
         if user.is_superuser:
-            return queryset
+            return True
 
-        return queryset.filter(branch=user.branch)
+        return obj.branch_id == user.branch_id
 
     def get_serializer_class(self):
         if self.request.method in ("PUT", "PATCH"):
