@@ -80,10 +80,13 @@ class ShipmentOrder(models.Model):
     status = models.CharField(
         max_length=40,
         choices=Status.choices,
-        default=Status.SUBMITTED,
+        default=Status.DRAFT,
     )
 
-    submitted_at = models.DateTimeField(default=timezone.now)
+    submitted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
 
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

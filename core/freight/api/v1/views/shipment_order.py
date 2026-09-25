@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
 
 from freight.api.v1.serializers import ShipmentOrderSerializer
-from freight.constants.roles import Roles
+from freight.constants import Roles
 from freight.models import ShipmentOrder
 
 
