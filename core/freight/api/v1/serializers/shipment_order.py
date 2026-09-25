@@ -39,9 +39,16 @@ class ShipmentOrderSerializer(serializers.ModelSerializer):
             "public_id",
             "tracking_code",
             "barcode",
+
+            # Lifecycle is changed through dedicated business actions.
             "status",
             "submitted_at",
+
+            # Ownership/audit fields.
+            "customer",
+            "branch",
             "created_by",
+
             "created_at",
             "updated_at",
         ]
