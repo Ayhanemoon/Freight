@@ -1,5 +1,6 @@
 from .branch import Branch
 from .customer import Customer
+from .customer_branch_membership import CustomerBranchMembership
 from .freight_company import FreightCompany
 from .shipment_order import ShipmentOrder
 from .parcel import Parcel
