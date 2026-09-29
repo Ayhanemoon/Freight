@@ -8,6 +8,12 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.mixins import ListModelMixin, RetrieveModelMixin
 
+from freight.permissions.api import (
+    CanAccessCollection,
+    CanManageCollection,
+    IsCargoCollector,
+)
+
 from freight.api.v1.serializers.collection_task import (
     CollectionTaskAssignSerializer,
     CollectionTaskSerializer,
@@ -30,7 +36,13 @@ def get_collection_task_for_user(task_id, user):
         "collector",
     )
 
-    if not user.is_superuser:
+    if user.is_superuser:
+        pass
+    elif user.groups.filter(name="CargoCollector").exists():
+        queryset = queryset.filter(
+            collector=user
+        )
+    else:
         queryset = queryset.filter(
             order__branch=user.branch
         )
@@ -46,7 +58,10 @@ class CollectionTaskViewSet(
     GenericViewSet,
 ):
     serializer_class = CollectionTaskSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [
+        IsAuthenticated,
+        CanAccessCollection,
+    ]
 
     queryset = (
         CollectionTask.objects
@@ -70,6 +85,11 @@ class CollectionTaskViewSet(
         if user.is_superuser:
             return queryset
 
+        if user.groups.filter(name="CargoCollector").exists():
+            return queryset.filter(
+                collector=user
+            )
+
         return queryset.filter(
             order__branch=user.branch
         )
@@ -77,7 +97,10 @@ class CollectionTaskViewSet(
 
 
 class CollectionTaskAssignAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [
+        IsAuthenticated,
+        CanManageCollection,
+    ]
 
     def post(self, request, task_id):
         task = get_collection_task_for_user(
@@ -108,7 +131,10 @@ class CollectionTaskAssignAPIView(APIView):
 
 
 class CollectionTaskVerifyParcelAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [
+        IsAuthenticated,
+        IsCargoCollector,
+    ]
 
     def post(self, request, task_id):
         task = get_collection_task_for_user(
@@ -152,7 +178,10 @@ class CollectionTaskVerifyParcelAPIView(APIView):
 
 
 class CollectionTaskCompleteAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [
+        IsAuthenticated,
+        IsCargoCollector,
+    ]
 
     def post(self, request, task_id):
         task = get_collection_task_for_user(
@@ -178,7 +207,10 @@ class CollectionTaskCompleteAPIView(APIView):
 
 
 class CollectionTaskCancelAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [
+        IsAuthenticated,
+        CanManageCollection,
+    ]
 
     def post(self, request, task_id):
         task = get_collection_task_for_user(
@@ -211,7 +243,10 @@ class CollectionTaskCancelAPIView(APIView):
 
 
 class CollectionTaskFailAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [
+        IsAuthenticated,
+        IsCargoCollector,
+    ]
 
     def post(self, request, task_id):
         task = get_collection_task_for_user(

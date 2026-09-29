@@ -2,6 +2,7 @@ from rest_framework.permissions import BasePermission
 
 from freight.permissions.capabilities import (
     has_branch_admin_capability,
+    has_collection_access_capability,
     has_collection_capability,
     has_customer_management_capability,
     has_dispatch_execution_capability,
@@ -23,6 +24,17 @@ class IsBranchAdmin(BasePermission):
 
     def has_permission(self, request, view):
         return has_branch_admin_capability(request.user)
+
+
+class CanAccessCollection(BasePermission):
+    """
+    Access to collection-task endpoints.
+
+    Queryset/object scope is enforced separately.
+    """
+
+    def has_permission(self, request, view):
+        return has_collection_access_capability(request.user)
 
 
 class CanManageCollection(BasePermission):

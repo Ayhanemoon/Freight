@@ -56,6 +56,32 @@ def has_branch_admin_capability(user):
     )
 
 
+def has_collection_access_capability(user):
+    """
+    Access to collection tasks.
+
+    BranchManager and users with collection permissions can access
+    branch-scoped collection work. CargoCollectors are handled by
+    assignment scope in the queryset.
+    """
+    if has_branch_admin_capability(user):
+        return True
+
+    if user.groups.filter(name=Roles.CARGO_COLLECTOR).exists():
+        return True
+
+    return has_any_permission(
+        user,
+        "freight.view_collectiontask",
+        "freight.add_collectiontask",
+        "freight.assign_collection_task",
+        "freight.start_collection_task",
+        "freight.verify_collection_task",
+        "freight.complete_collection_task",
+        "freight.cancel_collection_task",
+    )
+
+
 def has_collection_capability(user):
     """
     Collection management capability.
