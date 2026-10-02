@@ -13,6 +13,10 @@ from freight.models import (
     ShipmentStatusHistory,
 )
 
+from freight.permissions.capabilities import (
+    has_invoice_management_capability,
+)
+
 
 @transaction.atomic
 def create_invoice(
@@ -171,7 +175,7 @@ def _validate_operator_access(*, order, operator):
             "You cannot create an invoice for an order outside your branch."
         )
 
-    if not operator.has_perm("freight.add_invoice"):
+    if not has_invoice_management_capability(operator):
         raise PermissionDenied(
             "You do not have permission to create invoices."
         )

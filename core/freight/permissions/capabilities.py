@@ -118,6 +118,7 @@ def has_collection_verification_capability(user):
         "freight.verify_collection_task",
     )
 
+
 def has_collection_failure_capability(user):
     """
     Collection failure capability.
@@ -135,6 +136,7 @@ def has_collection_failure_capability(user):
         user,
         "freight.fail_collection_task",
     )
+
 
 def has_collection_capability(user):
     """
@@ -195,11 +197,6 @@ def has_dispatch_execution_capability(user):
 
 
 def has_invoice_management_capability(user):
-    """
-    Invoice and invoice-charge management capability.
-
-    This will be used by Dispatch Operators and branch administrators.
-    """
     if has_branch_admin_capability(user):
         return True
 
@@ -209,6 +206,7 @@ def has_invoice_management_capability(user):
         "freight.change_invoice",
         "freight.add_invoicecharge",
         "freight.change_invoicecharge",
+        "freight.delete_invoicecharge",
     )
 
 
