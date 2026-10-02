@@ -797,6 +797,11 @@ def complete_dispatch_batch(
         branch_id=batch.branch_id,
     )
 
+    if batch.dispatcher_id != completed_by.id:
+        raise PermissionDenied(
+            "Only the assigned dispatcher can complete this dispatch."
+        )
+
     _validate_transition(
         current_status=batch.status,
         new_status=DispatchBatch.Status.COMPLETED,

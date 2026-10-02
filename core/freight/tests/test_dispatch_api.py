@@ -685,3 +685,81 @@ class DispatchRejectAuthorizationAPITests(FreightAPITestCase):
             self.dispatch_order.status,
             DispatchOrder.Status.IN_PROGRESS,
         )
+
+class DispatchCompleteAuthorizationAPITests(FreightAPITestCase):
+    def setUp(self):
+        self.branch = self.create_branch(
+            name="Tehran Branch",
+            code="THR",
+        )
+
+        self.dispatcher = self.create_user(
+            mobile="09120000501",
+            branch=self.branch,
+            is_staff=True,
+        )
+
+        self.other_dispatcher = self.create_user(
+            mobile="09120000502",
+            branch=self.branch,
+            is_staff=True,
+        )
+
+        self.customer = self.create_customer(
+            user=self.create_user(
+                mobile="09120000503",
+            )
+        )
+
+        self.batch = DispatchBatch.objects.create(
+            branch=self.branch,
+            created_by=self.dispatcher,
+            dispatcher=self.dispatcher,
+            status=DispatchBatch.Status.IN_PROGRESS,
+        )
+
+        self.order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.dispatcher,
+            status=ShipmentOrder.Status.READY_FOR_DISPATCH,
+        )
+
+        self.dispatch_order = DispatchOrder.objects.create(
+            batch=self.batch,
+            order=self.order,
+            status=DispatchOrder.Status.DELIVERED,
+        )
+
+        self.url = reverse(
+            "freight:freight-api-v1:dispatch-batch-complete",
+            kwargs={
+                "batch_id": self.batch.pk,
+            },
+        )
+
+    def test_only_assigned_dispatcher_can_complete_batch(self):
+        self.grant_permission(
+            self.other_dispatcher,
+            "complete_dispatch",
+        )
+
+        self.authenticate(self.other_dispatcher)
+
+        response = self.client.post(
+            self.url,
+            {},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        self.batch.refresh_from_db()
+
+        self.assertEqual(
+            self.batch.status,
+            DispatchBatch.Status.IN_PROGRESS,
+        )
