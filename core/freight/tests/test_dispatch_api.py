@@ -763,3 +763,275 @@ class DispatchCompleteAuthorizationAPITests(FreightAPITestCase):
             self.batch.status,
             DispatchBatch.Status.IN_PROGRESS,
         )
+
+
+class DispatchCancellationAuthorizationAPITests(
+    FreightAPITestCase
+):
+    def setUp(self):
+        self.branch = self.create_branch(
+            name="Tehran Branch",
+            code="THR",
+        )
+
+        self.operator = self.create_user(
+            mobile="09120000601",
+            branch=self.branch,
+            is_staff=True,
+        )
+
+        self.dispatcher = self.create_user(
+            mobile="09120000602",
+            branch=self.branch,
+            is_staff=True,
+        )
+
+        self.customer = self.create_customer(
+            user=self.create_user(
+                mobile="09120000603",
+            )
+        )
+
+        self.freight_company = self.create_freight_company()
+
+        self.batch = DispatchBatch.objects.create(
+            branch=self.branch,
+            created_by=self.operator,
+            dispatcher=self.dispatcher,
+            status=DispatchBatch.Status.DRAFT,
+        )
+
+        self.order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.operator,
+            status=ShipmentOrder.Status.READY_FOR_DISPATCH,
+        )
+
+        self.dispatch_order = DispatchOrder.objects.create(
+            batch=self.batch,
+            order=self.order,
+            status=DispatchOrder.Status.PENDING,
+        )
+
+        self.assignment = DispatchFreightAssignment.objects.create(
+            dispatch_order=self.dispatch_order,
+            freight_company=self.freight_company,
+            payer=DispatchFreightAssignment.Payer.SENDER,
+            freight_amount=100000,
+            created_by=self.operator,
+            status=(
+                DispatchFreightAssignment
+                .Status
+                .DISPATCHING
+            ),
+        )
+
+        self.batch_cancel_url = reverse(
+            "freight:freight-api-v1:dispatch-batch-cancel",
+            kwargs={
+                "batch_id": self.batch.pk,
+            },
+        )
+
+        self.order_cancel_url = reverse(
+            "freight:freight-api-v1:dispatch-order-cancel",
+            kwargs={
+                "dispatch_order_id": self.dispatch_order.pk,
+            },
+        )
+
+        self.assignment_cancel_url = reverse(
+            "freight:freight-api-v1:dispatch-assignment-cancel",
+            kwargs={
+                "assignment_id": self.assignment.pk,
+            },
+        )
+
+        self.authenticate(self.operator)
+
+    # ------------------------------------------------------------------
+    # Batch cancellation
+    # ------------------------------------------------------------------
+
+    def test_user_without_dispatch_management_permission_cannot_cancel_batch(
+        self,
+    ):
+        response = self.client.post(
+            self.batch_cancel_url,
+            {},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        self.batch.refresh_from_db()
+
+        self.assertEqual(
+            self.batch.status,
+            DispatchBatch.Status.DRAFT,
+        )
+
+    def test_dispatch_management_user_can_cancel_batch(
+        self,
+    ):
+        self.grant_permission(
+            self.operator,
+            "change_dispatchbatch",
+        )
+
+        response = self.client.post(
+            self.batch_cancel_url,
+            {
+                "notes": "Cancelled by branch management.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.batch.refresh_from_db()
+
+        self.assertEqual(
+            self.batch.status,
+            DispatchBatch.Status.CANCELLED,
+        )
+
+    # ------------------------------------------------------------------
+    # Dispatch order cancellation
+    # ------------------------------------------------------------------
+
+    def test_user_without_dispatch_management_permission_cannot_cancel_order(
+        self,
+    ):
+        response = self.client.post(
+            self.order_cancel_url,
+            {},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        self.dispatch_order.refresh_from_db()
+
+        self.assertEqual(
+            self.dispatch_order.status,
+            DispatchOrder.Status.PENDING,
+        )
+
+    def test_dispatch_management_user_can_cancel_order(
+        self,
+    ):
+        self.grant_permission(
+            self.operator,
+            "change_dispatchbatch",
+        )
+
+        # An active freight assignment must be cancelled first.
+        assignment_response = self.client.post(
+            self.assignment_cancel_url,
+            {
+                "notes": "Freight assignment cancelled before order cancellation.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            assignment_response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assignment.refresh_from_db()
+
+        self.assertEqual(
+            self.assignment.status,
+            DispatchFreightAssignment.Status.CANCELLED,
+        )
+
+        response = self.client.post(
+            self.order_cancel_url,
+            {
+                "notes": "Order cancelled by dispatch management.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.dispatch_order.refresh_from_db()
+
+        self.assertEqual(
+            self.dispatch_order.status,
+            DispatchOrder.Status.CANCELLED,
+        )
+
+        self.order.refresh_from_db()
+
+        self.assertEqual(
+            self.order.status,
+            ShipmentOrder.Status.CANCELLED,
+        )
+    # ------------------------------------------------------------------
+    # Freight assignment cancellation
+    # ------------------------------------------------------------------
+
+    def test_user_without_dispatch_management_permission_cannot_cancel_assignment(
+        self,
+    ):
+        response = self.client.post(
+            self.assignment_cancel_url,
+            {},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        self.assignment.refresh_from_db()
+
+        self.assertEqual(
+            self.assignment.status,
+            DispatchFreightAssignment.Status.DISPATCHING,
+        )
+
+    def test_dispatch_management_user_can_cancel_assignment(
+        self,
+    ):
+        self.grant_permission(
+            self.operator,
+            "change_dispatchbatch",
+        )
+
+        response = self.client.post(
+            self.assignment_cancel_url,
+            {
+                "notes": "Freight assignment cancelled.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.assignment.refresh_from_db()
+
+        self.assertEqual(
+            self.assignment.status,
+            DispatchFreightAssignment.Status.CANCELLED,
+        )
