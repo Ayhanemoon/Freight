@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.exceptions import NotFound
+from rest_framework.permissions import IsAuthenticated
 
 from freight.api.v1.serializers import InvoiceChargeSerializer
 from freight.models import Invoice, InvoiceCharge
@@ -13,6 +14,8 @@ from freight.services.invoice_charge import (
 
 
 class InvoiceChargeCreateAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request, invoice_id):
         try:
             invoice = Invoice.objects.select_related(
@@ -45,6 +48,8 @@ class InvoiceChargeCreateAPIView(APIView):
 
 
 class InvoiceChargeDetailAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def _get_charge(self, invoice_id, charge_id):
         try:
             return InvoiceCharge.objects.select_related(

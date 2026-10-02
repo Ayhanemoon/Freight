@@ -1,6 +1,7 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.mixins import (
     CreateModelMixin,
     ListModelMixin,
@@ -8,11 +9,10 @@ from rest_framework.mixins import (
 )
 
 from freight.api.v1.serializers import (
-    InvoiceChargeSerializer,
     InvoiceCreateSerializer,
     InvoiceSerializer,
 )
-from freight.models import Invoice, InvoiceCharge
+from freight.models import Invoice
 from freight.services.invoice import create_invoice
 
 class InvoiceViewSet(
@@ -22,6 +22,7 @@ class InvoiceViewSet(
     GenericViewSet,
 ):
     serializer_class = InvoiceSerializer
+    permission_classes = [IsAuthenticated]
 
     queryset = (
         Invoice.objects
