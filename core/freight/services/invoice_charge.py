@@ -2,6 +2,9 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 
 from freight.models import InvoiceCharge
+from freight.permissions.capabilities import (
+    has_invoice_management_capability,
+)
 
 from .invoice import recalculate_invoice_total
 
@@ -13,7 +16,7 @@ def _validate_charge_amount(amount):
         )
 
 
-def _validate_invoice_access(*, invoice, user, permission):
+def _validate_invoice_access(*, invoice, user):
     if user.is_superuser:
         return
 
@@ -28,7 +31,7 @@ def _validate_invoice_access(*, invoice, user, permission):
             "outside your branch."
         )
 
-    if not user.has_perm(permission):
+    if not has_invoice_management_capability(user):
         raise PermissionDenied(
             "You do not have permission to manage invoice charges."
         )
@@ -51,7 +54,6 @@ def create_invoice_charge(
     _validate_invoice_access(
         invoice=invoice,
         user=created_by,
-        permission="freight.add_invoicecharge",
     )
 
     _validate_charge_amount(amount)
@@ -96,7 +98,6 @@ def update_invoice_charge(
     _validate_invoice_access(
         invoice=invoice,
         user=updated_by,
-        permission="freight.change_invoicecharge",
     )
 
     if amount is not None:
@@ -149,7 +150,6 @@ def delete_invoice_charge(
     _validate_invoice_access(
         invoice=invoice,
         user=deleted_by,
-        permission="freight.delete_invoicecharge",
     )
 
     charge.delete()
