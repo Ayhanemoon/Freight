@@ -100,6 +100,27 @@ class InvoiceAPITests(FreightAPITestCase):
             kwargs={"pk": self.other_invoice.pk},
         )
 
+        self.charge_create_url = reverse(
+            "freight:freight-api-v1:invoice-charge-create",
+            kwargs={"invoice_id": self.invoice.pk},
+        )
+
+        self.charge_detail_url = reverse(
+            "freight:freight-api-v1:invoice-charge-detail",
+            kwargs={
+                "invoice_id": self.invoice.pk,
+                "charge_id": self.invoice.charges.first().pk,
+            },
+        )
+
+        self.other_charge_detail_url = reverse(
+            "freight:freight-api-v1:invoice-charge-detail",
+            kwargs={
+                "invoice_id": self.other_invoice.pk,
+                "charge_id": self.other_invoice.charges.first().pk,
+            },
+        )   
+
         self.authenticate(self.operator)
 
     # ------------------------------------------------------------------
@@ -280,4 +301,269 @@ class InvoiceAPITests(FreightAPITestCase):
         self.assertEqual(
             self.create_order_instance.status,
             ShipmentOrder.Status.INVOICE_REGISTERED,
+        )
+
+    def test_user_with_invoice_permission_cannot_create_invoice_for_other_branch(self):
+        self.grant_permission(
+            self.operator,
+            "add_invoice",
+        )
+
+        other_order_parcel = Parcel.objects.create(
+            order=self.other_order,
+            parcel_number=1,
+            declared_weight_kg=10,
+            declared_length_cm=30,
+            declared_width_cm=20,
+            declared_height_cm=15,
+        )
+
+        response = self.client.post(
+            self.list_url,
+            {
+                "order": self.other_order.id,
+                "invoice_number": "INV-CROSS-BRANCH-001",
+                "parcels": [
+                    {
+                        "parcel": other_order_parcel.id,
+                        "parcel_name": "Other Branch Parcel",
+                        "parcel_type": "Box",
+                        "quantity": 1,
+                    }
+                ],
+                "charges": [
+                    {
+                        "charge_type": "freight",
+                        "amount": "100000.00",
+                        "payer": "sender",
+                        "description": "Freight",
+                    },
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        self.assertFalse(
+            Invoice.objects.filter(
+                invoice_number="INV-CROSS-BRANCH-001",
+            ).exists()
+        )
+
+    # ------------------------------------------------------------------
+    # Invoice charge authorization
+    # ------------------------------------------------------------------
+
+    def test_user_without_invoice_permission_cannot_create_invoice_charge(self):
+        response = self.client.post(
+            self.charge_create_url,
+            {
+                "charge_type": "other",
+                "amount": "50000.00",
+                "payer": "sender",
+                "description": "Additional charge",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+
+    def test_user_with_invoice_permission_can_create_invoice_charge(self):
+        self.grant_permission(
+            self.operator,
+            "add_invoicecharge",
+        )
+
+        response = self.client.post(
+            self.charge_create_url,
+            {
+                "charge_type": "other",
+                "amount": "50000.00",
+                "payer": "sender",
+                "description": "Additional charge",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+        )
+
+        self.assertTrue(
+            self.invoice.charges.filter(
+                amount=Decimal("50000.00"),
+                description="Additional charge",
+            ).exists()
+        )
+
+
+    def test_user_with_invoice_permission_cannot_manage_charge_outside_branch(self):
+        self.grant_permission(
+            self.operator,
+            "add_invoicecharge",
+        )
+
+        response = self.client.post(
+            reverse(
+                "freight:freight-api-v1:invoice-charge-create",
+                kwargs={
+                    "invoice_id": self.other_invoice.pk,
+                },
+            ),
+            {
+                "charge_type": "other",
+                "amount": "50000.00",
+                "payer": "sender",
+                "description": "Cross-branch charge",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+
+    def test_user_without_invoice_permission_cannot_update_invoice_charge(self):
+        charge = self.invoice.charges.first()
+
+        response = self.client.patch(
+            reverse(
+                "freight:freight-api-v1:invoice-charge-detail",
+                kwargs={
+                    "invoice_id": self.invoice.pk,
+                    "charge_id": charge.pk,
+                },
+            ),
+            {
+                "amount": "200000.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+
+    def test_user_with_invoice_permission_can_update_invoice_charge(self):
+        self.grant_permission(
+            self.operator,
+            "change_invoicecharge",
+        )
+
+        charge = self.invoice.charges.first()
+
+        response = self.client.patch(
+            reverse(
+                "freight:freight-api-v1:invoice-charge-detail",
+                kwargs={
+                    "invoice_id": self.invoice.pk,
+                    "charge_id": charge.pk,
+                },
+            ),
+            {
+                "amount": "200000.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        charge.refresh_from_db()
+
+        self.assertEqual(
+            charge.amount,
+            Decimal("200000.00"),
+        )
+
+
+    def test_user_with_invoice_permission_cannot_update_charge_outside_branch(self):
+        self.grant_permission(
+            self.operator,
+            "change_invoicecharge",
+        )
+
+        other_charge = self.other_invoice.charges.first()
+
+        response = self.client.patch(
+            reverse(
+                "freight:freight-api-v1:invoice-charge-detail",
+                kwargs={
+                    "invoice_id": self.other_invoice.pk,
+                    "charge_id": other_charge.pk,
+                },
+            ),
+            {
+                "amount": "200000.00",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+
+    def test_user_without_invoice_permission_cannot_delete_invoice_charge(self):
+        charge = self.invoice.charges.first()
+
+        response = self.client.delete(
+            reverse(
+                "freight:freight-api-v1:invoice-charge-detail",
+                kwargs={
+                    "invoice_id": self.invoice.pk,
+                    "charge_id": charge.pk,
+                },
+            ),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+
+    def test_user_with_invoice_permission_can_delete_invoice_charge(self):
+        self.grant_permission(
+            self.operator,
+            "delete_invoicecharge",
+        )
+
+        charge = self.invoice.charges.first()
+
+        response = self.client.delete(
+            reverse(
+                "freight:freight-api-v1:invoice-charge-detail",
+                kwargs={
+                    "invoice_id": self.invoice.pk,
+                    "charge_id": charge.pk,
+                },
+            ),
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+        )
+
+        self.assertFalse(
+            self.invoice.charges.filter(
+                pk=charge.pk,
+            ).exists()
         )
