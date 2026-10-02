@@ -3,6 +3,11 @@ from django.db import transaction
 from django.utils import timezone
 
 from freight.models import CollectionTask, Parcel
+from freight.permissions.capabilities import (
+    has_collection_failure_capability,
+    has_collection_verification_capability,
+    is_cargo_collector_user,
+)
 
 
 ALLOWED_TRANSITIONS = {
@@ -104,7 +109,6 @@ def change_collection_status(
     if new_status in {
         CollectionTask.Status.IN_PROGRESS,
         CollectionTask.Status.COMPLETED,
-        CollectionTask.Status.FAILED,
     }:
         if task.collector_id != user.id:
             raise ValidationError(
@@ -115,6 +119,23 @@ def change_collection_status(
             raise ValidationError(
                 "Collector and order must belong to the same branch."
             )
+
+    elif new_status == CollectionTask.Status.FAILED:
+        if not has_collection_failure_capability(user):
+            raise ValidationError(
+                "You are not allowed to fail collection tasks."
+            )
+
+        if user.branch_id != task.order.branch_id:
+            raise ValidationError(
+                "You cannot manage collection tasks outside your branch."
+            )
+
+        if is_cargo_collector_user(user):
+            if task.collector_id != user.id:
+                raise ValidationError(
+                    "You can only fail collection tasks assigned to you."
+                )
 
     elif new_status in {
         CollectionTask.Status.ASSIGNED,
@@ -169,10 +190,21 @@ def verify_parcel(
             "Parcels can only be verified for an active collection task."
         )
 
-    if task.collector_id != verified_by.id:
+    if not has_collection_verification_capability(verified_by):
         raise ValidationError(
-            "You can only verify parcels assigned to you."
+            "You are not allowed to verify collection parcels."
         )
+
+    if verified_by.branch_id != task.order.branch_id:
+        raise ValidationError(
+            "You cannot verify parcels outside your branch."
+        )
+
+    if is_cargo_collector_user(verified_by):
+        if task.collector_id != verified_by.id:
+            raise ValidationError(
+                "You can only verify parcels assigned to you."
+            )
 
     if parcel.order_id != task.order_id:
         raise ValidationError(

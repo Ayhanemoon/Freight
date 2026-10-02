@@ -3,11 +3,9 @@ from rest_framework.permissions import BasePermission
 from freight.permissions.capabilities import (
     has_branch_admin_capability,
     has_collection_access_capability,
-    has_collection_capability,
     has_collection_management_capability,
     has_collection_failure_capability,
     has_collection_verification_capability,
-    has_customer_management_capability,
     has_customer_management_capability,
     has_dispatch_execution_capability,
     has_dispatch_management_capability,
