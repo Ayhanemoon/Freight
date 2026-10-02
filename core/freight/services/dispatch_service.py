@@ -498,6 +498,11 @@ def mark_freight_assignment_delivered(
         branch_id=batch.branch_id,
     )
 
+    if batch.dispatcher_id != delivered_by.id:
+        raise PermissionDenied(
+            "Only the assigned dispatcher can mark this dispatch as delivered."
+        )
+
     if batch.status != DispatchBatch.Status.IN_PROGRESS:
         raise ValidationError(
             "The dispatch batch must be in progress."
@@ -657,6 +662,11 @@ def reject_dispatch_order(
         user=rejected_by,
         branch_id=batch.branch_id,
     )
+
+    if batch.dispatcher_id != rejected_by.id:
+        raise PermissionDenied(
+            "Only the assigned dispatcher can reject this dispatch order."
+        )
 
     if batch.status != DispatchBatch.Status.IN_PROGRESS:
         raise ValidationError(

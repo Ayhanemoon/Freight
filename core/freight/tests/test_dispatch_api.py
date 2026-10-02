@@ -1,8 +1,12 @@
 from django.urls import reverse
 from rest_framework import status
 
-from freight.models import DispatchBatch, DispatchOrder, ShipmentOrder
-
+from freight.models import (
+    DispatchBatch,
+    DispatchFreightAssignment,
+    DispatchOrder,
+    ShipmentOrder,
+)
 from .base import FreightAPITestCase
 
 
@@ -492,4 +496,192 @@ class DispatchOrderAPITests(FreightAPITestCase):
             DispatchOrder.objects.filter(
                 pk=dispatch_order.pk,
             ).exists()
+        )
+
+class DispatchDeliveryAuthorizationAPITests(FreightAPITestCase):
+    def setUp(self):
+        self.branch = self.create_branch(
+            name="Tehran Branch",
+            code="THR",
+        )
+
+        self.dispatcher = self.create_user(
+            mobile="09120000301",
+            branch=self.branch,
+            is_staff=True,
+        )
+
+        self.other_dispatcher = self.create_user(
+            mobile="09120000302",
+            branch=self.branch,
+            is_staff=True,
+        )
+
+        self.customer = self.create_customer(
+            user=self.create_user(
+                mobile="09120000303",
+            )
+        )
+
+        self.freight_company = self.create_freight_company()
+
+        self.batch = DispatchBatch.objects.create(
+            branch=self.branch,
+            created_by=self.dispatcher,
+            dispatcher=self.dispatcher,
+            status=DispatchBatch.Status.IN_PROGRESS,
+        )
+
+        self.order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.dispatcher,
+            status=ShipmentOrder.Status.READY_FOR_DISPATCH,
+        )
+
+        self.dispatch_order = DispatchOrder.objects.create(
+            batch=self.batch,
+            order=self.order,
+            status=DispatchOrder.Status.IN_PROGRESS,
+        )
+
+        self.assignment = DispatchFreightAssignment.objects.create(
+            dispatch_order=self.dispatch_order,
+            freight_company=self.freight_company,
+            payer=DispatchFreightAssignment.Payer.SENDER,
+            freight_amount=100000,
+            created_by=self.dispatcher,
+            status=DispatchFreightAssignment.Status.DISPATCHING,
+        )
+
+        self.url = reverse(
+            "freight:freight-api-v1:dispatch-order-delivered",
+            kwargs={
+                "dispatch_order_id": self.dispatch_order.pk,
+            },
+        )
+
+    def test_only_assigned_dispatcher_can_mark_delivery(self):
+        self.grant_permission(
+            self.other_dispatcher,
+            "start_dispatch",
+        )
+
+        self.authenticate(self.other_dispatcher)
+
+        response = self.client.post(
+            self.url,
+            {
+                "freight_invoice_number": "FR-INV-001",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        self.assignment.refresh_from_db()
+        self.dispatch_order.refresh_from_db()
+
+        self.assertEqual(
+            self.assignment.status,
+            DispatchFreightAssignment.Status.DISPATCHING,
+        )
+
+        self.assertEqual(
+            self.dispatch_order.status,
+            DispatchOrder.Status.IN_PROGRESS,
+        )
+
+class DispatchRejectAuthorizationAPITests(FreightAPITestCase):
+    def setUp(self):
+        self.branch = self.create_branch(
+            name="Tehran Branch",
+            code="THR",
+        )
+
+        self.dispatcher = self.create_user(
+            mobile="09120000401",
+            branch=self.branch,
+            is_staff=True,
+        )
+
+        self.other_dispatcher = self.create_user(
+            mobile="09120000402",
+            branch=self.branch,
+            is_staff=True,
+        )
+
+        self.customer = self.create_customer(
+            user=self.create_user(
+                mobile="09120000403",
+            )
+        )
+
+        self.freight_company = self.create_freight_company()
+
+        self.batch = DispatchBatch.objects.create(
+            branch=self.branch,
+            created_by=self.dispatcher,
+            dispatcher=self.dispatcher,
+            status=DispatchBatch.Status.IN_PROGRESS,
+        )
+
+        self.order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.dispatcher,
+            status=ShipmentOrder.Status.READY_FOR_DISPATCH,
+        )
+
+        self.dispatch_order = DispatchOrder.objects.create(
+            batch=self.batch,
+            order=self.order,
+            status=DispatchOrder.Status.IN_PROGRESS,
+        )
+
+        self.assignment = DispatchFreightAssignment.objects.create(
+            dispatch_order=self.dispatch_order,
+            freight_company=self.freight_company,
+            payer=DispatchFreightAssignment.Payer.SENDER,
+            freight_amount=100000,
+            created_by=self.dispatcher,
+            status=DispatchFreightAssignment.Status.CANCELLED,
+        )
+
+        self.url = reverse(
+            "freight:freight-api-v1:dispatch-order-reject",
+            kwargs={
+                "dispatch_order_id": self.dispatch_order.pk,
+            },
+        )
+
+    def test_only_assigned_dispatcher_can_reject_order(self):
+        self.grant_permission(
+            self.other_dispatcher,
+            "start_dispatch",
+        )
+
+        self.authenticate(self.other_dispatcher)
+
+        response = self.client.post(
+            self.url,
+            {
+                "reason": "Freight company rejected the shipment.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        self.dispatch_order.refresh_from_db()
+
+        self.assertEqual(
+            self.dispatch_order.status,
+            DispatchOrder.Status.IN_PROGRESS,
         )
