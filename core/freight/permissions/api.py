@@ -4,6 +4,10 @@ from freight.permissions.capabilities import (
     has_branch_admin_capability,
     has_collection_access_capability,
     has_collection_capability,
+    has_collection_management_capability,
+    has_collection_failure_capability,
+    has_collection_verification_capability,
+    has_customer_management_capability,
     has_customer_management_capability,
     has_dispatch_execution_capability,
     has_dispatch_management_capability,
@@ -36,19 +40,38 @@ class CanAccessCollection(BasePermission):
     def has_permission(self, request, view):
         return has_collection_access_capability(request.user)
 
-
 class CanManageCollection(BasePermission):
     """
     Collection management capability.
 
-    Used for collection-operator actions such as:
-    - creating collection tasks
-    - assigning collectors
-    - managing collection lifecycle
+    Used for management actions such as assigning and cancelling
+    collection tasks.
     """
 
     def has_permission(self, request, view):
-        return has_collection_capability(request.user)
+        return has_collection_management_capability(request.user)
+
+
+class CanFailCollection(BasePermission):
+    """
+    Collection failure capability.
+
+    Object/assignment/branch scope is enforced separately.
+    """
+
+    def has_permission(self, request, view):
+        return has_collection_failure_capability(request.user)
+
+
+class CanVerifyCollection(BasePermission):
+    """
+    Collection parcel-verification capability.
+
+    Object/assignment/branch scope is enforced separately.
+    """
+
+    def has_permission(self, request, view):
+        return has_collection_verification_capability(request.user)
 
 
 class CanManageDispatch(BasePermission):

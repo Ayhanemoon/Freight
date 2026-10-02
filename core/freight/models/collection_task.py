@@ -75,6 +75,7 @@ class CollectionTask(models.Model):
             ("verify_collection_task", "Can verify collection task"),
             ("complete_collection_task", "Can complete collection task"),
             ("cancel_collection_task", "Can cancel collection task"),
+            ("fail_collection_task", "Can fail collection task"),
         ]
 
     def __str__(self):

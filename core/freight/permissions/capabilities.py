@@ -82,6 +82,60 @@ def has_collection_access_capability(user):
     )
 
 
+def has_collection_management_capability(user):
+    """
+    Collection management capability.
+
+    BranchManager and users with collection-management permissions
+    can manage collection tasks within their branch.
+    """
+    if has_branch_admin_capability(user):
+        return True
+
+    return has_any_permission(
+        user,
+        "freight.add_collectiontask",
+        "freight.assign_collection_task",
+        "freight.cancel_collection_task",
+    )
+
+
+def has_collection_verification_capability(user):
+    """
+    Collection parcel-verification capability.
+
+    BranchManager, collection-capable operators and CargoCollectors
+    can verify parcels, subject to object/assignment scope.
+    """
+    if has_branch_admin_capability(user):
+        return True
+
+    if user.groups.filter(name=Roles.CARGO_COLLECTOR).exists():
+        return True
+
+    return has_any_permission(
+        user,
+        "freight.verify_collection_task",
+    )
+
+def has_collection_failure_capability(user):
+    """
+    Collection failure capability.
+
+    BranchManager, collection-capable operators and CargoCollectors
+    can fail collection tasks, subject to scope.
+    """
+    if has_branch_admin_capability(user):
+        return True
+
+    if user.groups.filter(name=Roles.CARGO_COLLECTOR).exists():
+        return True
+
+    return has_any_permission(
+        user,
+        "freight.fail_collection_task",
+    )
+
 def has_collection_capability(user):
     """
     Collection management capability.

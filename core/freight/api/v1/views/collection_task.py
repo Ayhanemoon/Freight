@@ -11,6 +11,8 @@ from rest_framework.mixins import ListModelMixin, RetrieveModelMixin
 from freight.permissions.api import (
     CanAccessCollection,
     CanManageCollection,
+    CanVerifyCollection,
+    CanFailCollection,
     IsCargoCollector,
 )
 
@@ -133,7 +135,7 @@ class CollectionTaskAssignAPIView(APIView):
 class CollectionTaskVerifyParcelAPIView(APIView):
     permission_classes = [
         IsAuthenticated,
-        IsCargoCollector,
+        CanVerifyCollection,
     ]
 
     def post(self, request, task_id):
@@ -245,7 +247,7 @@ class CollectionTaskCancelAPIView(APIView):
 class CollectionTaskFailAPIView(APIView):
     permission_classes = [
         IsAuthenticated,
-        IsCargoCollector,
+        CanFailCollection,
     ]
 
     def post(self, request, task_id):
