@@ -9,7 +9,11 @@ from freight.models import (
     ShipmentOrder,
     ShipmentStatusHistory,
     Invoice,
-    InvoiceCharge,
+)
+
+from freight.permissions.capabilities import (
+    has_dispatch_management_capability,
+    has_dispatch_execution_capability,
 )
 
 
@@ -71,14 +75,19 @@ ASSIGNMENT_TRANSITIONS = {
 }
 
 
-def _check_dispatch_permission(*, user, permission):
-    if user.is_superuser:
-        return
-
-    if not user.has_perm(permission):
+def _check_dispatch_management_capability(*, user):
+    if not has_dispatch_management_capability(user):
         raise PermissionDenied(
             "You do not have permission to perform "
-            "this dispatch action."
+            "this dispatch management action."
+        )
+
+
+def _check_dispatch_execution_capability(*, user):
+    if not has_dispatch_execution_capability(user):
+        raise PermissionDenied(
+            "You do not have permission to perform "
+            "this dispatch execution action."
         )
 
 def _check_branch_access(*, user, branch_id):
@@ -121,9 +130,8 @@ def create_dispatch_batch(
     scheduled_at=None,
     notes="",
 ):
-    _check_dispatch_permission(
+    _check_dispatch_management_capability(
         user=created_by,
-        permission="freight.add_dispatchbatch",
     )
 
     _check_branch_access(
@@ -148,10 +156,7 @@ def add_order_to_batch(
     order,
     added_by,
 ):
-    _check_dispatch_permission(
-        user=added_by,
-        permission="freight.add_order_to_dispatch",
-    )
+    _check_dispatch_management_capability(user=added_by)
 
     _check_branch_access(
         user=added_by,
@@ -191,10 +196,7 @@ def remove_order_from_batch(
     dispatch_order,
     removed_by,
 ):
-    _check_dispatch_permission(
-        user=removed_by,
-        permission="freight.remove_order_from_dispatch",
-    )
+    _check_dispatch_management_capability(user=removed_by)
 
     batch = dispatch_order.batch
 
@@ -216,10 +218,7 @@ def make_batch_ready(
     batch,
     changed_by,
 ):
-    _check_dispatch_permission(
-        user=changed_by,
-        permission="freight.change_dispatchbatch",
-    )
+    _check_dispatch_management_capability(user=changed_by)
 
     _check_branch_access(
         user=changed_by,
@@ -267,10 +266,7 @@ def assign_dispatcher(
     dispatcher,
     assigned_by,
 ):
-    _check_dispatch_permission(
-        user=assigned_by,
-        permission="freight.assign_dispatcher",
-    )
+    _check_dispatch_management_capability(user=assigned_by)
 
     _check_branch_access(
         user=assigned_by,
@@ -316,10 +312,7 @@ def assign_freight_company(
     created_by,
     freight_amount=None,
 ):
-    _check_dispatch_permission(
-        user=created_by,
-        permission="freight.add_order_to_dispatch",
-    )
+    _check_dispatch_management_capability(user=created_by)
 
     batch = dispatch_order.batch
 
@@ -400,10 +393,7 @@ def start_dispatch(
     batch,
     started_by,
 ):
-    _check_dispatch_permission(
-        user=started_by,
-        permission="freight.start_dispatch",
-    )
+    _check_dispatch_execution_capability(user=started_by)
 
     _check_branch_access(
         user=started_by,
@@ -485,10 +475,7 @@ def mark_freight_assignment_delivered(
     freight_invoice_file=None,
     notes="",
 ):
-    _check_dispatch_permission(
-        user=delivered_by,
-        permission="freight.start_dispatch",
-    )
+    _check_dispatch_execution_capability(user=delivered_by)
 
     dispatch_order = assignment.dispatch_order
     batch = dispatch_order.batch
@@ -565,10 +552,7 @@ def approve_dispatch_handover(
     approved_by,
     notes="",
 ):
-    _check_dispatch_permission(
-        user=approved_by,
-        permission="freight.change_dispatchbatch",
-    )
+    _check_dispatch_management_capability(user=approved_by)
 
     batch = dispatch_order.batch
     order = dispatch_order.order
@@ -651,10 +635,7 @@ def reject_dispatch_order(
     reason,
     notes="",
 ):
-    _check_dispatch_permission(
-        user=rejected_by,
-        permission="freight.start_dispatch",
-    )
+    _check_dispatch_execution_capability(user=rejected_by)
 
     batch = dispatch_order.batch
 
@@ -721,10 +702,7 @@ def return_dispatch_order(
     returned_by,
     notes="",
 ):
-    _check_dispatch_permission(
-        user=returned_by,
-        permission="freight.change_dispatchbatch",
-    )
+    _check_dispatch_management_capability(user=returned_by)
 
     batch = dispatch_order.batch
     order = dispatch_order.order
@@ -787,10 +765,7 @@ def complete_dispatch_batch(
     batch,
     completed_by,
 ):
-    _check_dispatch_permission(
-        user=completed_by,
-        permission="freight.complete_dispatch",
-    )
+    _check_dispatch_execution_capability(user=completed_by)
 
     _check_branch_access(
         user=completed_by,
@@ -851,10 +826,7 @@ def cancel_dispatch_batch(
     cancelled_by,
     notes="",
 ):
-    _check_dispatch_permission(
-        user=cancelled_by,
-        permission="freight.change_dispatchbatch",
-    )
+    _check_dispatch_management_capability(user=cancelled_by)
 
     _check_branch_access(
         user=cancelled_by,
@@ -901,10 +873,7 @@ def cancel_dispatch_order(
     cancelled_by,
     notes="",
 ):
-    _check_dispatch_permission(
-        user=cancelled_by,
-        permission="freight.change_dispatchbatch",
-    )
+    _check_dispatch_management_capability(user=cancelled_by)
 
     batch = dispatch_order.batch
     order = dispatch_order.order
@@ -980,10 +949,7 @@ def cancel_freight_assignment(
     cancelled_by,
     notes="",
 ):
-    _check_dispatch_permission(
-        user=cancelled_by,
-        permission="freight.change_dispatchbatch",
-    )
+    _check_dispatch_management_capability(user=cancelled_by)
 
     dispatch_order = assignment.dispatch_order
     batch = dispatch_order.batch
