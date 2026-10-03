@@ -1,0 +1,269 @@
+import hashlib
+import secrets
+from datetime import timedelta
+
+from django.db import transaction
+from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied, ValidationError
+
+from freight.models import (
+    Customer,
+    CustomerBranchMembership,
+    CustomerRegistrationInvitation,
+)
+from freight.permissions.capabilities import (
+    has_branch_admin_capability,
+)
+
+
+TOKEN_BYTES = 32
+DEFAULT_INVITATION_LIFETIME = timedelta(days=7)
+
+
+def _hash_token(token):
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _generate_token():
+    return secrets.token_urlsafe(TOKEN_BYTES)
+
+
+def _validate_invitation_creator(user, branch):
+    if not user or not user.is_authenticated:
+        raise PermissionDenied(
+            "Authentication is required to create an invitation."
+        )
+
+    if not user.is_active:
+        raise PermissionDenied(
+            "User account is inactive."
+        )
+
+    if not has_branch_admin_capability(user):
+        raise PermissionDenied(
+            "You do not have permission to create customer invitations."
+        )
+
+    if not user.is_superuser and user.branch_id != branch.id:
+        raise PermissionDenied(
+            "You cannot create an invitation for another branch."
+        )
+
+
+def _validate_target(*, customer=None, target_mobile=None):
+    if customer is not None and target_mobile is not None:
+        raise ValidationError(
+            "Invitation cannot target both a customer and a mobile number."
+        )
+
+
+def create_customer_registration_invitation(
+    *,
+    user,
+    branch,
+    customer=None,
+    target_mobile=None,
+    expires_at=None,
+    max_uses=1,
+):
+    """
+    Create a customer registration invitation.
+
+    Returns:
+        tuple: (invitation, raw_token)
+    """
+    _validate_invitation_creator(user, branch)
+
+    if not branch.is_active:
+        raise ValidationError(
+            "Cannot create an invitation for an inactive branch."
+        )
+
+    _validate_target(
+        customer=customer,
+        target_mobile=target_mobile,
+    )
+
+    if customer is not None:
+        if not Customer.objects.filter(
+            pk=customer.pk
+        ).exists():
+            raise ValidationError(
+                "Customer does not exist."
+            )
+
+    if max_uses <= 0:
+        raise ValidationError(
+            "max_uses must be greater than zero."
+        )
+
+    if expires_at is None:
+        expires_at = timezone.now() + DEFAULT_INVITATION_LIFETIME
+
+    if expires_at <= timezone.now():
+        raise ValidationError(
+            "Invitation expiration must be in the future."
+        )
+
+    token = _generate_token()
+    token_hash = _hash_token(token)
+
+    invitation = CustomerRegistrationInvitation.objects.create(
+        branch=branch,
+        token_hash=token_hash,
+        created_by=user,
+        customer=customer,
+        target_mobile=target_mobile,
+        expires_at=expires_at,
+        max_uses=max_uses,
+    )
+
+    return invitation, token
+
+
+def get_valid_customer_registration_invitation(token):
+    """
+    Return a valid invitation for a raw token.
+
+    This does not consume the invitation.
+    """
+    token_hash = _hash_token(token)
+
+    invitation = (
+        CustomerRegistrationInvitation.objects
+        .select_related("branch", "customer", "customer__user")
+        .filter(token_hash=token_hash)
+        .first()
+    )
+
+    if invitation is None:
+        raise ValidationError(
+            "Invalid invitation."
+        )
+
+    if invitation.revoked_at is not None:
+        raise ValidationError(
+            "Invitation has been revoked."
+        )
+
+    if invitation.expires_at <= timezone.now():
+        raise ValidationError(
+            "Invitation has expired."
+        )
+
+    if invitation.used_count >= invitation.max_uses:
+        raise ValidationError(
+            "Invitation has reached its usage limit."
+        )
+
+    if not invitation.branch.is_active:
+        raise ValidationError(
+            "Invitation branch is inactive."
+        )
+
+    return invitation
+
+
+def consume_customer_registration_invitation(
+    *,
+    token,
+    user,
+):
+    """
+    Atomically consume one invitation use.
+
+    The invitation is locked during the transaction so that
+    one-time invitations cannot be consumed concurrently.
+    """
+    token_hash = _hash_token(token)
+
+    with transaction.atomic():
+        invitation = (
+            CustomerRegistrationInvitation.objects
+            .select_for_update()
+            .select_related(
+                "branch",
+                "customer",
+                "customer__user",
+            )
+            .filter(token_hash=token_hash)
+            .first()
+        )
+
+        if invitation is None:
+            raise ValidationError(
+                "Invalid invitation."
+            )
+
+        if invitation.revoked_at is not None:
+            raise ValidationError(
+                "Invitation has been revoked."
+            )
+
+        if invitation.expires_at <= timezone.now():
+            raise ValidationError(
+                "Invitation has expired."
+            )
+
+        if invitation.used_count >= invitation.max_uses:
+            raise ValidationError(
+                "Invitation has reached its usage limit."
+            )
+
+        if not invitation.branch.is_active:
+            raise ValidationError(
+                "Invitation branch is inactive."
+            )
+
+        if (
+            invitation.target_mobile is not None
+            and str(user.mobile) != str(invitation.target_mobile)
+        ):
+            raise PermissionDenied(
+                "This invitation is not intended for this mobile number."
+            )
+
+        invitation.used_count += 1
+        invitation.save(
+            update_fields=["used_count"]
+        )
+
+        return invitation
+
+
+def revoke_customer_registration_invitation(
+    *,
+    user,
+    invitation_id,
+):
+    """
+    Revoke an invitation without deleting its audit history.
+    """
+    with transaction.atomic():
+        invitation = (
+            CustomerRegistrationInvitation.objects
+            .select_for_update()
+            .select_related("branch")
+            .filter(pk=invitation_id)
+            .first()
+        )
+
+        if invitation is None:
+            raise ValidationError(
+                "Invitation not found."
+            )
+
+        _validate_invitation_creator(
+            user,
+            invitation.branch,
+        )
+
+        if invitation.revoked_at is not None:
+            return invitation
+
+        invitation.revoked_at = timezone.now()
+        invitation.save(
+            update_fields=["revoked_at"]
+        )
+
+        return invitation
