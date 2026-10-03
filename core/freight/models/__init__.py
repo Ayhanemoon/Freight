@@ -12,3 +12,4 @@ from .InvoiceParcel import InvoiceParcel
 from .dispatch_batch import DispatchBatch
 from .dispatch_order import DispatchOrder
 from .dispatch_freight_assignment import DispatchFreightAssignment
+from .customer_registration_invitation import CustomerRegistrationInvitation
