@@ -4,11 +4,11 @@ from datetime import timedelta
 
 from django.db import transaction
 from django.utils import timezone
+from django.contrib.auth import get_user_model
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from freight.models import (
     Customer,
-    CustomerBranchMembership,
     CustomerRegistrationInvitation,
 )
 from freight.permissions.capabilities import (
@@ -18,6 +18,7 @@ from freight.permissions.capabilities import (
 
 TOKEN_BYTES = 32
 DEFAULT_INVITATION_LIFETIME = timedelta(days=7)
+User = get_user_model()
 
 
 def _hash_token(token):
@@ -92,6 +93,11 @@ def create_customer_registration_invitation(
                 "Customer does not exist."
             )
 
+        if customer.user_id is None:
+            raise ValidationError(
+                "Customer must have a user account."
+            )
+
     if max_uses <= 0:
         raise ValidationError(
             "max_uses must be greater than zero."
@@ -131,7 +137,11 @@ def get_valid_customer_registration_invitation(token):
 
     invitation = (
         CustomerRegistrationInvitation.objects
-        .select_related("branch", "customer", "customer__user")
+        .select_related(
+            "branch",
+            "customer",
+            "customer__user",
+        )
         .filter(token_hash=token_hash)
         .first()
     )
@@ -175,6 +185,16 @@ def consume_customer_registration_invitation(
     The invitation is locked during the transaction so that
     one-time invitations cannot be consumed concurrently.
     """
+    if not user or not user.is_authenticated:
+        raise PermissionDenied(
+            "Authentication is required to consume an invitation."
+        )
+
+    if not user.is_active:
+        raise PermissionDenied(
+            "User account is inactive."
+        )
+
     token_hash = _hash_token(token)
 
     with transaction.atomic():
@@ -215,13 +235,25 @@ def consume_customer_registration_invitation(
                 "Invitation branch is inactive."
             )
 
-        if (
-            invitation.target_mobile is not None
-            and str(user.mobile) != str(invitation.target_mobile)
-        ):
-            raise PermissionDenied(
-                "This invitation is not intended for this mobile number."
+        if invitation.customer_id is not None:
+            if invitation.customer.user_id != user.id:
+                raise PermissionDenied(
+                    "This invitation is not intended for this customer."
+                )
+
+        if invitation.target_mobile is not None:
+            normalized_target_mobile = User.objects.normalize_mobile(
+                invitation.target_mobile
             )
+
+            normalized_user_mobile = User.objects.normalize_mobile(
+                user.mobile
+            )
+
+            if normalized_user_mobile != normalized_target_mobile:
+                raise PermissionDenied(
+                    "This invitation is not intended for this mobile number."
+                )
 
         invitation.used_count += 1
         invitation.save(
