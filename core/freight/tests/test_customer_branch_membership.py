@@ -3,8 +3,9 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from freight.models import CustomerBranchMembership
 from freight.tests.base import FreightAPITestCase
-
+from freight.constants import Roles
 from freight.services.customer_branch_membership import (
+    approve_customer_branch_membership,
     request_customer_branch_membership,
 )
 
@@ -285,3 +286,181 @@ class CustomerBranchMembershipServiceTests(FreightAPITestCase):
                 user=self.customer_user,
                 branch=self.tehran,
             )
+
+class CustomerBranchMembershipApprovalServiceTests(
+    FreightAPITestCase
+):
+
+    def setUp(self):
+        self.branch = self.create_branch(
+            name="Tehran Branch",
+            code="THR",
+        )
+
+        self.other_branch = self.create_branch(
+            name="Mashhad Branch",
+            code="MHD",
+            city="Mashhad",
+        )
+
+        self.customer_user = self.create_user(
+            mobile="09121111201",
+        )
+
+        self.customer = self.create_customer(
+            user=self.customer_user,
+        )
+
+        self.manager = self.create_user(
+            mobile="09121111202",
+            branch=self.branch,
+        )
+
+        self.manager.groups.create(
+            name=Roles.BRANCH_MANAGER,
+        )
+
+    def test_branch_manager_can_approve_pending_membership(self):
+        membership = CustomerBranchMembership.objects.create(
+            customer=self.customer,
+            branch=self.branch,
+            status=CustomerBranchMembership.Status.PENDING,
+        )
+
+        approved = approve_customer_branch_membership(
+            user=self.manager,
+            membership=membership,
+        )
+
+        self.assertEqual(
+            approved.status,
+            CustomerBranchMembership.Status.ACTIVE,
+        )
+
+        self.assertEqual(
+            approved.approved_by_id,
+            self.manager.id,
+        )
+
+        self.assertIsNotNone(
+            approved.approved_at,
+        )
+
+    def test_branch_manager_cannot_approve_membership_from_other_branch(
+        self,
+    ):
+        membership = CustomerBranchMembership.objects.create(
+            customer=self.customer,
+            branch=self.other_branch,
+            status=CustomerBranchMembership.Status.PENDING,
+        )
+
+        with self.assertRaises(PermissionDenied):
+            approve_customer_branch_membership(
+                user=self.manager,
+                membership=membership,
+            )
+
+        membership.refresh_from_db()
+
+        self.assertEqual(
+            membership.status,
+            CustomerBranchMembership.Status.PENDING,
+        )
+
+        self.assertIsNone(
+            membership.approved_at,
+        )
+
+        self.assertIsNone(
+            membership.approved_by,
+        )
+
+    def test_customer_cannot_approve_membership(self):
+        membership = CustomerBranchMembership.objects.create(
+            customer=self.customer,
+            branch=self.branch,
+            status=CustomerBranchMembership.Status.PENDING,
+        )
+
+        with self.assertRaises(PermissionDenied):
+            approve_customer_branch_membership(
+                user=self.customer_user,
+                membership=membership,
+            )
+
+        membership.refresh_from_db()
+
+        self.assertEqual(
+            membership.status,
+            CustomerBranchMembership.Status.PENDING,
+        )
+
+    def test_only_pending_membership_can_be_approved(self):
+        membership = CustomerBranchMembership.objects.create(
+            customer=self.customer,
+            branch=self.branch,
+            status=CustomerBranchMembership.Status.ACTIVE,
+        )
+
+        with self.assertRaises(ValidationError):
+            approve_customer_branch_membership(
+                user=self.manager,
+                membership=membership,
+            )
+
+    def test_inactive_branch_membership_cannot_be_approved(self):
+        self.branch.is_active = False
+        self.branch.save(
+            update_fields=["is_active"],
+        )
+
+        membership = CustomerBranchMembership.objects.create(
+            customer=self.customer,
+            branch=self.branch,
+            status=CustomerBranchMembership.Status.PENDING,
+        )
+
+        with self.assertRaises(ValidationError):
+            approve_customer_branch_membership(
+                user=self.manager,
+                membership=membership,
+            )
+
+        membership.refresh_from_db()
+
+        self.assertEqual(
+            membership.status,
+            CustomerBranchMembership.Status.PENDING,
+        )
+
+    def test_superadmin_can_approve_membership_from_any_branch(self):
+        superadmin = self.create_user(
+            mobile="09121111204",
+            is_superuser=True,
+        )
+
+        membership = CustomerBranchMembership.objects.create(
+            customer=self.customer,
+            branch=self.other_branch,
+            status=CustomerBranchMembership.Status.PENDING,
+        )
+
+        approved = approve_customer_branch_membership(
+            user=superadmin,
+            membership=membership,
+        )
+
+        self.assertEqual(
+            approved.status,
+            CustomerBranchMembership.Status.ACTIVE,
+        )
+
+        self.assertEqual(
+            approved.approved_by_id,
+            superadmin.id,
+        )
+
+        self.assertIsNotNone(
+            approved.approved_at,
+        )

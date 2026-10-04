@@ -39,4 +39,5 @@ from .dispatch import (
 from .customer_onboarding import CustomerOnboardingAPIView
 from .customer_branch_membership import (
     CustomerBranchMembershipRequestAPIView,
+    CustomerBranchMembershipApproveAPIView,
 )
