@@ -1,4 +1,6 @@
-from django.test import TestCase
+from unittest.mock import patch
+
+from django.contrib.auth.models import AnonymousUser
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from freight.models import Customer, CustomerBranchMembership
@@ -210,6 +212,64 @@ class CustomerOnboardingServiceTests(FreightAPITestCase):
                 national_id="0012345678",
                 branch=branch,
             )
+
+        self.assertFalse(
+            Customer.objects.filter(user=user).exists()
+        )
+
+
+    def test_unauthenticated_user_cannot_onboard(self):
+        user = AnonymousUser()
+
+        with self.assertRaises(PermissionDenied):
+            onboard_customer(
+                user=user,
+                customer_type=Customer.CustomerType.PERSON,
+                first_name="Ali",
+                last_name="Ahmadi",
+                national_id="0012345678",
+            )
+
+    def test_invalid_customer_type_is_rejected(self):
+        user = self.create_user(
+            mobile="09121111122",
+        )
+
+        with self.assertRaises(ValidationError):
+            onboard_customer(
+                user=user,
+                customer_type="invalid",
+                first_name="Ali",
+                last_name="Ahmadi",
+                national_id="0012345678",
+            )
+
+        self.assertFalse(
+            Customer.objects.filter(user=user).exists()
+        )
+
+    def test_onboarding_rolls_back_customer_when_membership_creation_fails(self):
+        user = self.create_user(
+            mobile="09121111123",
+        )
+        branch = self.create_branch(
+            code="ROLLBACK",
+        )
+
+        with patch(
+            "freight.services.customer_onboarding."
+            "CustomerBranchMembership.objects.create",
+            side_effect=RuntimeError("membership creation failed"),
+        ):
+            with self.assertRaises(RuntimeError):
+                onboard_customer(
+                    user=user,
+                    customer_type=Customer.CustomerType.PERSON,
+                    first_name="Ali",
+                    last_name="Ahmadi",
+                    national_id="0012345678",
+                    branch=branch,
+                )
 
         self.assertFalse(
             Customer.objects.filter(user=user).exists()
