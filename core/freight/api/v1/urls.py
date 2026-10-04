@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from freight.api.v1.views import (
     BranchViewSet,
     CustomerViewSet,
+    CustomerOnboardingAPIView,
     FreightCompanyViewSet,
     ShipmentOrderViewSet,
     ParcelViewSet,
@@ -247,6 +248,12 @@ urlpatterns = [
         "dispatch-assignments/<int:assignment_id>/cancel/",
         DispatchCancelAssignmentAPIView.as_view(),
         name="dispatch-assignment-cancel",
+    ),
+
+    path(
+        "customers/onboarding/",
+        CustomerOnboardingAPIView.as_view(),
+        name="customer-onboarding",
     ),
     # Include the router URLs for viewsets
     path("", include(router.urls)),

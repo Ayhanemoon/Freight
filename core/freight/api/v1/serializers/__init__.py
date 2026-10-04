@@ -28,3 +28,5 @@ from .dispatch import (
     DispatchRejectSerializer,
     DispatchDeliveredSerializer,
 )
+
+from .customer_onboarding import CustomerOnboardingSerializer

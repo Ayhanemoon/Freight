@@ -36,3 +36,4 @@ from .dispatch import (
     DispatchCancelOrderAPIView,
     DispatchCancelAssignmentAPIView,
 )
+from .customer_onboarding import CustomerOnboardingAPIView
