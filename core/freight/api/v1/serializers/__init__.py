@@ -30,3 +30,7 @@ from .dispatch import (
 )
 
 from .customer_onboarding import CustomerOnboardingSerializer
+from .customer_branch_membership import (
+    CustomerBranchMembershipSerializer,
+    CustomerBranchMembershipRequestSerializer
+)

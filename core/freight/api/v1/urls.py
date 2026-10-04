@@ -5,6 +5,7 @@ from freight.api.v1.views import (
     BranchViewSet,
     CustomerViewSet,
     CustomerOnboardingAPIView,
+    CustomerBranchMembershipRequestAPIView,
     FreightCompanyViewSet,
     ShipmentOrderViewSet,
     ParcelViewSet,
@@ -254,6 +255,12 @@ urlpatterns = [
         "customers/onboarding/",
         CustomerOnboardingAPIView.as_view(),
         name="customer-onboarding",
+    ),
+
+    path(
+        "customer-branch-memberships/request/",
+        CustomerBranchMembershipRequestAPIView.as_view(),
+        name="customer-branch-membership-request",
     ),
     # Include the router URLs for viewsets
     path("", include(router.urls)),
