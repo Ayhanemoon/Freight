@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from django.contrib.auth.models import AnonymousUser
+from freight.constants import Roles
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from freight.models import Customer, CustomerBranchMembership
@@ -217,7 +218,6 @@ class CustomerOnboardingServiceTests(FreightAPITestCase):
             Customer.objects.filter(user=user).exists()
         )
 
-
     def test_unauthenticated_user_cannot_onboard(self):
         user = AnonymousUser()
 
@@ -248,7 +248,9 @@ class CustomerOnboardingServiceTests(FreightAPITestCase):
             Customer.objects.filter(user=user).exists()
         )
 
-    def test_onboarding_rolls_back_customer_when_membership_creation_fails(self):
+    def test_onboarding_rolls_back_customer_and_role_when_membership_creation_fails(
+        self,
+    ):
         user = self.create_user(
             mobile="09121111123",
         )
@@ -273,4 +275,31 @@ class CustomerOnboardingServiceTests(FreightAPITestCase):
 
         self.assertFalse(
             Customer.objects.filter(user=user).exists()
+        )
+
+        self.assertFalse(
+            user.groups.filter(
+                name=Roles.CUSTOMER,
+            ).exists()
+        )
+
+    def test_onboarding_assigns_customer_role(self):
+        user = self.create_user(
+            mobile="09121111124",
+        )
+
+        customer, membership = onboard_customer(
+            user=user,
+            customer_type=Customer.CustomerType.PERSON,
+            first_name="Ali",
+            last_name="Ahmadi",
+            national_id="0012345678",
+        )
+
+        self.assertIsNotNone(customer)
+
+        self.assertTrue(
+            user.groups.filter(
+                name=Roles.CUSTOMER,
+            ).exists()
         )

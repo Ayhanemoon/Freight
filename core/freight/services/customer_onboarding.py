@@ -1,6 +1,8 @@
 from django.db import transaction
+from django.contrib.auth.models import Group
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
+from freight.constants import Roles
 from freight.models import (
     Customer,
     CustomerBranchMembership,
@@ -49,6 +51,11 @@ def _validate_customer_data(
             "Invalid customer type."
         )
 
+def _assign_customer_role(user):
+    group, _ = Group.objects.get_or_create(
+        name=Roles.CUSTOMER,
+    )
+    user.groups.add(group)
 
 def onboard_customer(
     *,
@@ -107,6 +114,8 @@ def onboard_customer(
             company_registration_no=company_registration_no,
             economic_code=economic_code,
         )
+
+        _assign_customer_role(user)
 
         membership = None
 
