@@ -22,9 +22,10 @@ class CustomerRegistrationInvitationAPIView(APIView):
         )
         serializer.is_valid(raise_exception=True)
 
-        validated_data = serializer.validated_data
+        validated_data = serializer.validated_data.copy()
+        validated_data.pop("password1")
 
-        user, customer, membership, invitation = (
+        user, customer, membership, _ = (
             register_customer_with_invitation(
                 **validated_data,
             )

@@ -138,6 +138,7 @@ def get_valid_customer_registration_invitation(token):
 
     invitation = (
         CustomerRegistrationInvitation.objects
+        .select_for_update()
         .select_related(
             "branch",
             "customer",

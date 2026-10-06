@@ -1,5 +1,3 @@
-from datetime import timedelta
-
 from django.contrib.auth.models import Group
 from django.urls import reverse
 from django.utils import timezone
@@ -9,7 +7,6 @@ from freight.constants import Roles
 from freight.models import (
     Customer,
     CustomerBranchMembership,
-    CustomerRegistrationInvitation,
 )
 from freight.services.customer_registration_invitation import (
     create_customer_registration_invitation,
@@ -194,10 +191,13 @@ class CustomerRegistrationInvitationAPITests(
         )
 
     def test_expired_invitation_is_rejected(self):
-        invitation, token = self.create_invitation(
-            expires_at=timezone.now() - timedelta(
-                minutes=1,
-            ),
+        invitation, token = self.create_invitation()
+
+        invitation.expires_at = (
+            timezone.now()
+        )
+        invitation.save(
+            update_fields=["expires_at"],
         )
 
         response = self.client.post(
@@ -346,6 +346,31 @@ class CustomerRegistrationInvitationAPITests(
         payload = self.valid_person_payload(token)
 
         payload.pop("national_id")
+
+        response = self.client.post(
+            self.url,
+            payload,
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        invitation.refresh_from_db()
+
+        self.assertEqual(
+            invitation.used_count,
+            0,
+        )
+
+    def test_password_confirmation_is_required(self):
+        invitation, token = self.create_invitation()
+
+        payload = self.valid_person_payload(token)
+
+        payload["password1"] = "different@123456"
 
         response = self.client.post(
             self.url,
