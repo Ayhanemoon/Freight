@@ -280,3 +280,67 @@ def is_operator_user(user):
         user.is_superuser
         or user.groups.filter(name=Roles.OPERATOR).exists()
     )
+
+
+def has_shipment_order_access_capability(user):
+    """
+    Access to shipment orders.
+
+    Object/branch/assignment scope is enforced separately.
+    """
+    if has_branch_admin_capability(user):
+        return True
+
+    if is_customer_user(user):
+        return True
+
+    if is_operator_user(user):
+        return True
+
+    if is_cargo_collector_user(user):
+        return True
+
+    if is_dispatcher_user(user):
+        return True
+
+    return has_any_permission(
+        user,
+        "freight.view_shipmentorder",
+    )
+
+
+def has_shipment_order_create_capability(user):
+    """
+    Create shipment orders.
+
+    Customers and BranchManagers can create orders.
+    SuperAdmin is covered by has_branch_admin_capability().
+    """
+    if has_branch_admin_capability(user):
+        return True
+
+    if is_customer_user(user):
+        return True
+
+    return has_any_permission(
+        user,
+        "freight.add_shipmentorder",
+    )
+
+
+def has_shipment_order_change_capability(user):
+    """
+    Generic shipment-order modification capability.
+
+    Customer ownership and DRAFT restrictions are enforced separately.
+    """
+    if has_branch_admin_capability(user):
+        return True
+
+    if is_customer_user(user):
+        return True
+
+    return has_permission(
+        user,
+        "freight.change_shipmentorder",
+    )

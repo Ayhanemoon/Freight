@@ -3,8 +3,18 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
 
 from freight.api.v1.serializers import ShipmentOrderSerializer
-from freight.constants import Roles
-from freight.models import ShipmentOrder
+from freight.models import (
+    CustomerBranchMembership,
+    ShipmentOrder,
+)
+from freight.permissions.capabilities import (
+    has_shipment_order_access_capability,
+    has_shipment_order_change_capability,
+    has_shipment_order_create_capability,
+    is_cargo_collector_user,
+    is_customer_user,
+    is_dispatcher_user,
+)
 
 
 class ShipmentOrderViewSet(ModelViewSet):
@@ -28,41 +38,57 @@ class ShipmentOrderViewSet(ModelViewSet):
         user = self.request.user
         queryset = self.queryset
 
-        # SuperAdmin has global access.
+        if not has_shipment_order_access_capability(user):
+            return queryset.none()
+
+        # SuperAdmin / global capability.
         if user.is_superuser:
             return queryset
 
-        # Customer can only see their own orders.
-        if user.groups.filter(name=Roles.CUSTOMER).exists():
-            return queryset.filter(customer__user=user)
+        # Customer: own orders only.
+        if is_customer_user(user):
+            return queryset.filter(
+                customer__user_id=user.id,
+            )
 
-        # All other authenticated users are branch-scoped.
+        # CargoCollector: assigned collection orders only.
+        if is_cargo_collector_user(user):
+            return queryset.filter(
+                collection_task__collector_id=user.id,
+            )
+
+        # Dispatcher: orders assigned through dispatch batches.
+        if is_dispatcher_user(user):
+            return queryset.filter(
+                dispatch_items__batch__dispatcher_id=user.id,
+            ).distinct()
+
+        # Branch-scoped staff.
         if not user.branch_id:
             return queryset.none()
 
-        return queryset.filter(branch_id=user.branch_id)
+        return queryset.filter(
+            branch_id=user.branch_id,
+        )
 
     def perform_create(self, serializer):
         user = self.request.user
 
-        is_super_admin = user.is_superuser
-        is_branch_manager = user.groups.filter(
-            name=Roles.BRANCH_MANAGER
-        ).exists()
-        is_customer = user.groups.filter(
-            name=Roles.CUSTOMER
-        ).exists()
-
-        if not (
-            is_super_admin
-            or is_branch_manager
-            or is_customer
-        ):
+        if not has_shipment_order_create_capability(user):
             raise PermissionDenied(
                 "You do not have permission to create shipment orders."
             )
 
-        if is_customer and not is_super_admin:
+        # SuperAdmin can create an order for any branch.
+        if user.is_superuser:
+            serializer.save(
+                created_by=user,
+            )
+            return
+
+        # Customer creates an order for one of their ACTIVE
+        # CustomerBranchMembership records.
+        if is_customer_user(user):
             try:
                 customer = user.customer_profile
             except AttributeError:
@@ -70,42 +96,66 @@ class ShipmentOrderViewSet(ModelViewSet):
                     "Customer profile is required to create a shipment order."
                 )
 
-            if not user.branch_id:
+            branch = serializer.validated_data.get("branch")
+
+            if branch is None:
                 raise PermissionDenied(
-                    "Customer must belong to a branch."
+                    "A branch is required to create a shipment order."
                 )
 
-            # Customer cannot choose another customer or branch.
+            has_active_membership = (
+                CustomerBranchMembership.objects.filter(
+                    customer=customer,
+                    branch=branch,
+                    status=CustomerBranchMembership.Status.ACTIVE,
+                ).exists()
+            )
+
+            if not has_active_membership:
+                raise PermissionDenied(
+                    "Customer is not an active member of the selected branch."
+                )
+
             serializer.save(
                 customer=customer,
-                branch_id=user.branch_id,
+                branch=branch,
                 created_by=user,
             )
             return
 
-        # SuperAdmin may create globally.
-        if is_super_admin:
-            serializer.save(created_by=user)
-            return
+        # BranchManager capability is branch-scoped.
+        if not user.branch_id:
+            raise PermissionDenied(
+                "Branch is required for shipment-order creation."
+            )
 
-        # BranchManager must create inside their own branch.
-        if serializer.validated_data["branch"].id != user.branch_id:
+        branch = serializer.validated_data.get("branch")
+
+        if branch is None:
+            raise PermissionDenied(
+                "A branch is required to create a shipment order."
+            )
+
+        if branch.id != user.branch_id:
             raise PermissionDenied(
                 "You cannot create an order for another branch."
             )
 
-        serializer.save(created_by=user)
+        serializer.save(
+            created_by=user,
+        )
 
     def perform_update(self, serializer):
         user = self.request.user
         instance = self.get_object()
 
-        is_customer = user.groups.filter(
-            name=Roles.CUSTOMER
-        ).exists()
+        if not has_shipment_order_change_capability(user):
+            raise PermissionDenied(
+                "You do not have permission to modify shipment orders."
+            )
 
-        # Customer may only edit their own DRAFT order.
-        if is_customer and not user.is_superuser:
+        # Customer-specific ownership and lifecycle rules.
+        if is_customer_user(user):
             if instance.customer.user_id != user.id:
                 raise PermissionDenied(
                     "You cannot modify another customer's order."
@@ -116,7 +166,7 @@ class ShipmentOrderViewSet(ModelViewSet):
                     "Only draft shipment orders can be modified."
                 )
 
-            # Customer must never change ownership/scope.
+            # Customer cannot change ownership or branch.
             serializer.save(
                 customer=instance.customer,
                 branch=instance.branch,
@@ -124,13 +174,10 @@ class ShipmentOrderViewSet(ModelViewSet):
             )
             return
 
-        # Staff can only modify objects returned by get_queryset(),
-        # therefore branch isolation is already enforced.
+        # Branch/object scope is already enforced by get_queryset().
         serializer.save()
 
     def destroy(self, request, *args, **kwargs):
-        # Shipment orders should follow the cancellation lifecycle.
-        # Hard deletion would destroy operational/audit history.
         raise PermissionDenied(
             "Shipment orders cannot be deleted. "
             "Use the cancellation workflow instead."
