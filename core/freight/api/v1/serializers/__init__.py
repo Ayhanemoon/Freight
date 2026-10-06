@@ -28,9 +28,11 @@ from .dispatch import (
     DispatchRejectSerializer,
     DispatchDeliveredSerializer,
 )
-
 from .customer_onboarding import CustomerOnboardingSerializer
 from .customer_branch_membership import (
     CustomerBranchMembershipSerializer,
     CustomerBranchMembershipRequestSerializer
+)
+from .customer_registration_invitation import (
+    CustomerRegistrationInvitationSerializer,
 )

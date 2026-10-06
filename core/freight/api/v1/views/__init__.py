@@ -41,3 +41,6 @@ from .customer_branch_membership import (
     CustomerBranchMembershipRequestAPIView,
     CustomerBranchMembershipApproveAPIView,
 )
+from .customer_registration_invitation import (
+    CustomerRegistrationInvitationAPIView,
+)
