@@ -1,9 +1,14 @@
 from datetime import timedelta
 
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
+from freight.models import (
+    Customer,
+    CustomerBranchMembership,
+)
 from freight.constants.roles import Roles
 from freight.models import CustomerRegistrationInvitation
 from freight.services.customer_registration_invitation import (
@@ -11,9 +16,11 @@ from freight.services.customer_registration_invitation import (
     consume_customer_registration_invitation,
     get_valid_customer_registration_invitation,
     revoke_customer_registration_invitation,
+    register_customer_with_invitation,
 )
 from freight.tests.base import FreightAPITestCase
 
+User = get_user_model()
 
 class CustomerRegistrationInvitationServiceTests(FreightAPITestCase):
 
@@ -498,4 +505,324 @@ class CustomerRegistrationInvitationServiceTests(FreightAPITestCase):
 
         self.assertIsNotNone(
             invitation.revoked_at,
+        )
+
+
+class CustomerRegistrationInvitationRegistrationTests(
+    FreightAPITestCase
+):
+
+    def setUp(self):
+        self.branch = self.create_branch(
+            name="Tehran Branch",
+            code="THR",
+        )
+
+        self.manager = self.create_user(
+            mobile="09129999991",
+            branch=self.branch,
+            is_staff=True,
+        )
+
+        self.manager_group = Group.objects.create(
+            name=Roles.BRANCH_MANAGER,
+        )
+
+        self.manager.groups.add(self.manager_group)
+
+    def create_invitation(
+        self,
+        target_mobile=None,
+    ):
+        invitation, token = (
+            create_customer_registration_invitation(
+                user=self.manager,
+                branch=self.branch,
+                target_mobile=target_mobile,
+            )
+        )
+
+        return invitation, token
+
+    def test_customer_can_register_with_generic_invitation(self):
+        invitation, token = self.create_invitation()
+
+        user, customer, membership, returned_invitation = (
+            register_customer_with_invitation(
+                invitation_token=token,
+                mobile="09121111111",
+                password="test@123456",
+                customer_type=Customer.CustomerType.PERSON,
+                first_name="Ali",
+                last_name="Ahmadi",
+                national_id="0012345678",
+            )
+        )
+
+        self.assertIsNotNone(user)
+        self.assertEqual(
+            str(user.mobile),
+            "+989121111111",
+        )
+
+        self.assertEqual(
+            customer.user_id,
+            user.id,
+        )
+
+        self.assertEqual(
+            membership.branch_id,
+            self.branch.id,
+        )
+
+        self.assertEqual(
+            membership.status,
+            CustomerBranchMembership.Status.PENDING,
+        )
+
+        self.assertEqual(
+            returned_invitation.id,
+            invitation.id,
+        )
+
+        invitation.refresh_from_db()
+
+        self.assertEqual(
+            invitation.used_count,
+            1,
+        )
+
+    def test_customer_can_register_with_mobile_specific_invitation(self):
+        invitation, token = self.create_invitation(
+            target_mobile="09121111112",
+        )
+
+        user, customer, membership, returned_invitation = (
+            register_customer_with_invitation(
+                invitation_token=token,
+                mobile="09121111112",
+                password="test@123456",
+                customer_type=Customer.CustomerType.PERSON,
+                first_name="Ali",
+                last_name="Ahmadi",
+                national_id="0012345678",
+            )
+        )
+
+        self.assertEqual(
+            str(user.mobile),
+            "+989121111112",
+        )
+
+        self.assertEqual(
+            customer.user_id,
+            user.id,
+        )
+
+        self.assertEqual(
+            membership.branch_id,
+            self.branch.id,
+        )
+
+        self.assertEqual(
+            membership.status,
+            CustomerBranchMembership.Status.PENDING,
+        )
+
+    def test_mobile_specific_invitation_rejects_wrong_mobile(self):
+        invitation, token = self.create_invitation(
+            target_mobile="09121111113",
+        )
+
+        with self.assertRaises(PermissionDenied):
+            register_customer_with_invitation(
+                invitation_token=token,
+                mobile="09121111114",
+                password="test@123456",
+                customer_type=Customer.CustomerType.PERSON,
+                first_name="Ali",
+                last_name="Ahmadi",
+                national_id="0012345678",
+            )
+
+        invitation.refresh_from_db()
+
+        self.assertEqual(
+            invitation.used_count,
+            0,
+        )
+
+        self.assertFalse(
+            User.objects.filter(
+                mobile="09121111114",
+            ).exists()
+        )
+
+    def test_customer_specific_invitation_cannot_be_used_for_new_registration(
+        self,
+    ):
+        existing_user = self.create_user(
+            mobile="09121111115",
+        )
+
+        existing_customer = self.create_customer(
+            user=existing_user,
+        )
+
+        invitation, token = (
+            create_customer_registration_invitation(
+                user=self.manager,
+                branch=self.branch,
+                customer=existing_customer,
+            )
+        )
+
+        with self.assertRaises(ValidationError):
+            register_customer_with_invitation(
+                invitation_token=token,
+                mobile="09121111116",
+                password="test@123456",
+                customer_type=Customer.CustomerType.PERSON,
+                first_name="Ali",
+                last_name="Ahmadi",
+                national_id="0012345678",
+            )
+
+        invitation.refresh_from_db()
+
+        self.assertEqual(
+            invitation.used_count,
+            0,
+        )
+
+    def test_existing_mobile_cannot_register_again(self):
+        existing_user = self.create_user(
+            mobile="09121111117",
+        )
+
+        invitation, token = self.create_invitation()
+
+        with self.assertRaises(ValidationError):
+            register_customer_with_invitation(
+                invitation_token=token,
+                mobile=str(existing_user.mobile),
+                password="test@123456",
+                customer_type=Customer.CustomerType.PERSON,
+                first_name="Ali",
+                last_name="Ahmadi",
+                national_id="0012345678",
+            )
+
+        invitation.refresh_from_db()
+
+        self.assertEqual(
+            invitation.used_count,
+            0,
+        )
+
+    def test_invitation_branch_is_used_without_client_branch(self):
+        other_branch = self.create_branch(
+            name="Mashhad Branch",
+            code="MHD",
+            city="Mashhad",
+        )
+
+        other_manager = self.create_user(
+            mobile="09121111112",
+            branch=other_branch,
+            is_staff=True,
+        )
+
+        other_manager.groups.add(
+            self.manager_group,
+        )
+
+
+
+        invitation, token = (
+            create_customer_registration_invitation(
+                user=other_manager,
+                branch=other_branch,
+            )
+        )
+
+        user, customer, membership, returned_invitation = (
+            register_customer_with_invitation(
+                invitation_token=token,
+                mobile="09121111118",
+                password="test@123456",
+                customer_type=Customer.CustomerType.PERSON,
+                first_name="Ali",
+                last_name="Ahmadi",
+                national_id="0012345678",
+            )
+        )
+
+        self.assertEqual(
+            membership.branch_id,
+            other_branch.id,
+        )
+
+        self.assertNotEqual(
+            membership.branch_id,
+            self.branch.id,
+        )
+
+    def test_registration_creates_company_customer(self):
+        invitation, token = self.create_invitation()
+
+        user, customer, membership, returned_invitation = (
+            register_customer_with_invitation(
+                invitation_token=token,
+                mobile="09121111119",
+                password="test@123456",
+                customer_type=Customer.CustomerType.COMPANY,
+                company_name="Example Co",
+                company_registration_no="123456",
+                economic_code="987654321",
+            )
+        )
+
+        self.assertEqual(
+            customer.customer_type,
+            Customer.CustomerType.COMPANY,
+        )
+
+        self.assertEqual(
+            customer.company_name,
+            "Example Co",
+        )
+
+        self.assertEqual(
+            membership.branch_id,
+            self.branch.id,
+        )
+
+    def test_failed_onboarding_does_not_consume_invitation_or_create_user(
+        self,
+    ):
+        invitation, token = self.create_invitation()
+
+        with self.assertRaises(ValidationError):
+            register_customer_with_invitation(
+                invitation_token=token,
+                mobile="09121111120",
+                password="test@123456",
+                customer_type=Customer.CustomerType.PERSON,
+                first_name="Ali",
+                last_name="Ahmadi",
+                # national_id intentionally missing
+            )
+
+        invitation.refresh_from_db()
+
+        self.assertEqual(
+            invitation.used_count,
+            0,
+        )
+
+        self.assertFalse(
+            User.objects.filter(
+                mobile="09121111120",
+            ).exists()
         )

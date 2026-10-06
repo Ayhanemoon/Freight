@@ -11,6 +11,7 @@ from freight.models import (
     Customer,
     CustomerRegistrationInvitation,
 )
+from freight.services.customer_onboarding import onboard_customer
 from freight.permissions.capabilities import (
     has_branch_admin_capability,
 )
@@ -299,3 +300,88 @@ def revoke_customer_registration_invitation(
         )
 
         return invitation
+
+
+def register_customer_with_invitation(
+    *,
+    invitation_token,
+    mobile,
+    password,
+    customer_type,
+    first_name="",
+    last_name="",
+    national_id="",
+    company_name="",
+    company_registration_no="",
+    economic_code="",
+):
+    """
+    Register a new customer through a branch invitation.
+
+    The invitation determines the customer's branch.
+    The client cannot choose the branch.
+
+    Returns:
+        tuple: (user, customer, membership, invitation)
+    """
+
+    normalized_mobile = User.objects.normalize_mobile(
+        mobile
+    )
+
+    with transaction.atomic():
+        invitation = get_valid_customer_registration_invitation(
+            invitation_token
+        )
+
+        if invitation.customer_id is not None:
+            raise ValidationError(
+                "This invitation is for an existing customer."
+            )
+
+        if invitation.target_mobile is not None:
+            normalized_target_mobile = User.objects.normalize_mobile(
+                invitation.target_mobile
+            )
+
+            if normalized_mobile != normalized_target_mobile:
+                raise PermissionDenied(
+                    "This invitation is not intended for this mobile number."
+                )
+
+        if User.objects.filter(
+            mobile=normalized_mobile
+        ).exists():
+            raise ValidationError(
+                "A user with this mobile number already exists."
+            )
+
+        user = User.objects.create_user(
+            mobile=normalized_mobile,
+            password=password,
+            auth_provider="mobile",
+        )
+
+        customer, membership = onboard_customer(
+            user=user,
+            customer_type=customer_type,
+            first_name=first_name,
+            last_name=last_name,
+            national_id=national_id,
+            company_name=company_name,
+            company_registration_no=company_registration_no,
+            economic_code=economic_code,
+            branch=invitation.branch,
+        )
+
+        invitation.used_count += 1
+        invitation.save(
+            update_fields=["used_count"]
+        )
+
+        return (
+            user,
+            customer,
+            membership,
+            invitation,
+        )
