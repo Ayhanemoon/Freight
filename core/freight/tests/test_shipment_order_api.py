@@ -91,6 +91,11 @@ class ShipmentOrderAPITests(FreightAPITestCase):
             "shipment_description": "Test shipment",
         }
 
+    def valid_staff_order_payload(self, branch, customer):
+        payload = self.valid_order_payload(branch)
+        payload["customer"] = customer.id
+        return payload
+
     # ------------------------------------------------------------------
     # Customer - Create
     # ------------------------------------------------------------------
@@ -337,11 +342,19 @@ class ShipmentOrderAPITests(FreightAPITestCase):
     # ------------------------------------------------------------------
 
     def test_branch_manager_can_create_order_in_own_branch(self):
+        self.create_active_membership(
+            self.customer,
+            self.branch,
+        )
+
         self.authenticate(self.branch_manager)
 
         response = self.client.post(
             self.url,
-            self.valid_order_payload(self.branch),
+            self.valid_staff_order_payload(
+                self.branch,
+                self.customer,
+            ),
             format="json",
         )
 
@@ -353,16 +366,50 @@ class ShipmentOrderAPITests(FreightAPITestCase):
         )
 
         self.assertEqual(
+            response.data["customer"],
+            self.customer.id,
+        )
+
+        self.assertEqual(
             response.data["created_by"],
             self.branch_manager.id,
         )
 
     def test_branch_manager_cannot_create_order_in_other_branch(self):
+        self.create_active_membership(
+            self.customer,
+            self.other_branch,
+        )
+
         self.authenticate(self.branch_manager)
 
         response = self.client.post(
             self.url,
-            self.valid_order_payload(self.other_branch),
+            self.valid_staff_order_payload(
+                self.other_branch,
+                self.customer,
+            ),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_branch_manager_cannot_create_order_for_customer_of_other_branch(
+        self,
+    ):
+        self.create_active_membership(
+            self.other_customer,
+            self.other_branch,
+        )
+
+        self.authenticate(self.branch_manager)
+
+        response = self.client.post(
+            self.url,
+            self.valid_staff_order_payload(
+                self.branch,
+                self.other_customer,
+            ),
             format="json",
         )
 

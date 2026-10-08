@@ -141,6 +141,24 @@ class ShipmentOrderViewSet(ModelViewSet):
                 "You cannot create an order for another branch."
             )
 
+        customer = serializer.validated_data.get("customer")
+
+        if customer is None:
+            raise PermissionDenied(
+                "Customer is required to create a shipment order."
+            )
+
+        customer_has_branch = CustomerBranchMembership.objects.filter(
+            customer=customer,
+            branch=branch,
+            status=CustomerBranchMembership.Status.ACTIVE,
+        ).exists()
+
+        if not customer_has_branch:
+            raise PermissionDenied(
+                "Customer is not an active member of the selected branch."
+            )
+
         serializer.save(
             created_by=user,
         )

@@ -45,7 +45,6 @@ class ShipmentOrderSerializer(serializers.ModelSerializer):
             "submitted_at",
 
             # Ownership/audit fields.
-            "customer",
             "created_by",
 
             "created_at",
