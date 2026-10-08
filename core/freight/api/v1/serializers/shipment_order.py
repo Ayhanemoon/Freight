@@ -50,3 +50,9 @@ class ShipmentOrderSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+        extra_kwargs = {
+            "customer": {
+                "required": False,
+            },
+        }

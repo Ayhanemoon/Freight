@@ -1,4 +1,5 @@
 from django.urls import reverse
+from django.contrib.auth.models import Group
 
 from freight.constants import Roles
 from freight.models import CustomerBranchMembership
@@ -41,6 +42,11 @@ class ShipmentOrderAPITests(FreightAPITestCase):
         self.customer_user = self.create_user(
             mobile="09121111113",
         )
+        customer_group, _ = Group.objects.get_or_create(
+            name=Roles.CUSTOMER,
+        )
+
+        self.customer_user.groups.add(customer_group)
         self.customer = self.create_customer(
             user=self.customer_user,
         )
@@ -48,6 +54,7 @@ class ShipmentOrderAPITests(FreightAPITestCase):
         self.other_customer_user = self.create_user(
             mobile="09121111114",
         )
+        self.other_customer_user.groups.add(customer_group)
         self.other_customer = self.create_customer(
             user=self.other_customer_user,
         )
