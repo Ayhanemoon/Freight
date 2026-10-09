@@ -2,7 +2,7 @@ from django.urls import reverse
 from django.contrib.auth.models import Group
 
 from freight.constants import Roles
-from freight.models import CustomerBranchMembership
+from freight.models import CustomerBranchMembership, ShipmentStatusHistory, ShipmentOrder
 
 from .base import FreightAPITestCase
 
@@ -591,5 +591,147 @@ class ShipmentOrderAPITests(FreightAPITestCase):
         self.unauthenticate()
 
         response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 401)
+
+
+    
+    # ------------------------------------------------------------------
+    # Customer - Submit
+    # ------------------------------------------------------------------
+
+    def test_customer_can_submit_own_draft_order(self):
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.customer_user,
+            status=ShipmentOrder.Status.DRAFT,
+        )
+
+        self.authenticate(self.customer_user)
+
+        response = self.client.post(
+            reverse(
+                "freight:freight-api-v1:shipment-order-submit",
+                kwargs={"pk": order.pk},
+            ),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        order.refresh_from_db()
+
+        self.assertEqual(
+            order.status,
+            ShipmentOrder.Status.SUBMITTED,
+        )
+        self.assertIsNotNone(order.submitted_at)
+
+        self.assertEqual(
+            response.data["status"],
+            ShipmentOrder.Status.SUBMITTED,
+        )
+        self.assertIsNotNone(response.data["submitted_at"])
+
+        self.assertTrue(
+            ShipmentStatusHistory.objects.filter(
+                shipment=order,
+                from_status=ShipmentOrder.Status.DRAFT,
+                to_status=ShipmentOrder.Status.SUBMITTED,
+                changed_by=self.customer_user,
+            ).exists()
+        )
+
+    def test_customer_cannot_submit_another_customers_order(self):
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.other_customer,
+            created_by=self.other_customer_user,
+            status=ShipmentOrder.Status.DRAFT,
+        )
+
+        self.authenticate(self.customer_user)
+
+        response = self.client.post(
+            reverse(
+                "freight:freight-api-v1:shipment-order-submit",
+                kwargs={"pk": order.pk},
+            ),
+            {},
+            format="json",
+        )
+
+        # The queryset scopes customers to their own orders.
+        self.assertEqual(response.status_code, 404)
+
+        order.refresh_from_db()
+        self.assertEqual(order.status, ShipmentOrder.Status.DRAFT)
+        self.assertIsNone(order.submitted_at)
+
+    def test_customer_cannot_submit_non_draft_order(self):
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.customer_user,
+            status=ShipmentOrder.Status.SUBMITTED,
+        )
+
+        self.authenticate(self.customer_user)
+
+        response = self.client.post(
+            reverse(
+                "freight:freight-api-v1:shipment-order-submit",
+                kwargs={"pk": order.pk},
+            ),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_branch_manager_cannot_submit_customer_order(self):
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.customer_user,
+            status=ShipmentOrder.Status.DRAFT,
+        )
+
+        self.authenticate(self.branch_manager)
+
+        response = self.client.post(
+            reverse(
+                "freight:freight-api-v1:shipment-order-submit",
+                kwargs={"pk": order.pk},
+            ),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+        order.refresh_from_db()
+        self.assertEqual(order.status, ShipmentOrder.Status.DRAFT)
+
+    def test_submit_action_requires_authentication(self):
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.customer_user,
+            status=ShipmentOrder.Status.DRAFT,
+        )
+
+        self.unauthenticate()
+
+        response = self.client.post(
+            reverse(
+                "freight:freight-api-v1:shipment-order-submit",
+                kwargs={"pk": order.pk},
+            ),
+            {},
+            format="json",
+        )
 
         self.assertEqual(response.status_code, 401)

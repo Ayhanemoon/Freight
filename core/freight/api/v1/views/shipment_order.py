@@ -1,8 +1,11 @@
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 from freight.api.v1.serializers import ShipmentOrderSerializer
+from freight.services import change_order_status
 from freight.models import (
     CustomerBranchMembership,
     ShipmentOrder,
@@ -199,4 +202,38 @@ class ShipmentOrderViewSet(ModelViewSet):
         raise PermissionDenied(
             "Shipment orders cannot be deleted. "
             "Use the cancellation workflow instead."
+        )
+
+    
+    @action(detail=True, methods=["post"])
+    def submit(self, request, pk=None):
+        order = self.get_object()
+        user = request.user
+
+        # Submission is a customer action, not a staff action.
+        if user.is_superuser or not is_customer_user(user):
+            raise PermissionDenied(
+                "Only customers can submit shipment orders."
+            )
+
+        if order.customer.user_id != user.id:
+            raise PermissionDenied(
+                "You cannot submit another customer's order."
+            )
+
+        if order.status != ShipmentOrder.Status.DRAFT:
+            raise PermissionDenied(
+                "Only draft shipment orders can be submitted."
+            )
+
+        order = change_order_status(
+            order=order,
+            new_status=ShipmentOrder.Status.SUBMITTED,
+            changed_by=user,
+            note="Customer submitted shipment order.",
+        )
+
+        return Response(
+            self.get_serializer(order).data,
+            status=200,
         )

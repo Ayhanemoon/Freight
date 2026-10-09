@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils import timezone
 
 from freight.models import ShipmentOrder, ShipmentStatusHistory
 
@@ -98,12 +99,16 @@ def change_order_status(
 
     order.status = new_status
 
-    order.save(
-        update_fields=[
-            "status",
-            "updated_at",
-        ]
-    )
+    update_fields = ["status", "updated_at"]
+
+    if (
+        previous_status == ShipmentOrder.Status.DRAFT
+        and new_status == ShipmentOrder.Status.SUBMITTED
+    ):
+        order.submitted_at = timezone.now()
+        update_fields.append("submitted_at")
+
+    order.save(update_fields=update_fields)
 
     ShipmentStatusHistory.objects.create(
         shipment=order,
