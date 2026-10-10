@@ -735,3 +735,84 @@ class ShipmentOrderAPITests(FreightAPITestCase):
         )
 
         self.assertEqual(response.status_code, 401)
+
+    
+    def test_branch_manager_can_view_order_status_history(self):
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.customer_user,
+            status=ShipmentOrder.Status.SUBMITTED,
+        )
+
+        ShipmentStatusHistory.objects.create(
+            shipment=order,
+            from_status=ShipmentOrder.Status.DRAFT,
+            to_status=ShipmentOrder.Status.SUBMITTED,
+            changed_by=self.customer_user,
+            note="Customer submitted shipment order.",
+        )
+
+        self.authenticate(self.branch_manager)
+
+        response = self.client.get(
+            reverse(
+                "freight:freight-api-v1:shipment-order-status-history",
+                kwargs={"pk": order.pk},
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["from_status"],
+            ShipmentOrder.Status.DRAFT,
+        )
+        self.assertEqual(
+            response.data[0]["to_status"],
+            ShipmentOrder.Status.SUBMITTED,
+        )
+        self.assertEqual(
+            response.data[0]["changed_by"],
+            self.customer_user.id,
+        )
+        self.assertEqual(
+            response.data[0]["note"],
+            "Customer submitted shipment order.",
+        )
+
+    def test_customer_cannot_view_another_customers_status_history(self):
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.other_customer,
+            created_by=self.other_customer_user,
+        )
+
+        self.authenticate(self.customer_user)
+
+        response = self.client.get(
+            reverse(
+                "freight:freight-api-v1:shipment-order-status-history",
+                kwargs={"pk": order.pk},
+            )
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_status_history_endpoint_requires_authentication(self):
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.customer_user,
+        )
+
+        self.unauthenticate()
+
+        response = self.client.get(
+            reverse(
+                "freight:freight-api-v1:shipment-order-status-history",
+                kwargs={"pk": order.pk},
+            )
+        )
+
+        self.assertEqual(response.status_code, 401)

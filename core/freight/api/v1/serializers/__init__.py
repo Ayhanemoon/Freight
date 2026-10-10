@@ -36,3 +36,4 @@ from .customer_branch_membership import (
 from .customer_registration_invitation import (
     CustomerRegistrationInvitationSerializer,
 )
+from .status_history import ShipmentStatusHistorySerializer

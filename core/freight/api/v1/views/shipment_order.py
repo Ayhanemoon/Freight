@@ -4,7 +4,10 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from freight.api.v1.serializers import ShipmentOrderSerializer
+from freight.api.v1.serializers import (
+    ShipmentOrderSerializer,
+    ShipmentStatusHistorySerializer,
+)
 from freight.services import change_order_status
 from freight.models import (
     CustomerBranchMembership,
@@ -237,3 +240,28 @@ class ShipmentOrderViewSet(ModelViewSet):
             self.get_serializer(order).data,
             status=200,
         )
+
+    
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="status-history",
+        url_name="status-history",
+    )
+    def status_history(self, request, pk=None):
+        # get_object() enforces the existing order queryset scope.
+        order = self.get_object()
+
+        history = (
+            order.status_history
+            .select_related("changed_by")
+            .all()
+        )
+
+        serializer = ShipmentStatusHistorySerializer(
+            history,
+            many=True,
+            context=self.get_serializer_context(),
+        )
+
+        return Response(serializer.data)
