@@ -34,6 +34,7 @@ from .permissions import (
 from django.utils import timezone
 from ..utils import Util
 from datetime import datetime
+from freight.constants import Roles
 
 class RegisterApiView(generics.GenericAPIView):
 
@@ -134,6 +135,59 @@ class ProfileApiView(generics.RetrieveUpdateAPIView):
         obj = get_object_or_404(queryset, user=self.request.user)
         return obj
 
+
+class CurrentUserCapabilitiesAPIView(views.APIView):
+    """
+    Return the authenticated user's identity, roles, branch context,
+    and effective Django permissions.
+
+    This endpoint provides frontend authorization context only.
+    Backend permission, ownership, branch, and workflow checks remain
+    responsible for enforcing access.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        # Only recognized Freight roles are exposed as application roles.
+        # SuperAdmin is derived from is_superuser, not merely group membership.
+        role_names = {
+            Roles.BRANCH_MANAGER,
+            Roles.OPERATOR,
+            Roles.CARGO_COLLECTOR,
+            Roles.DISPATCHER,
+            Roles.CUSTOMER,
+        }
+
+        roles = set(
+            user.groups.filter(
+                name__in=role_names,
+            ).values_list("name", flat=True)
+        )
+
+        if user.is_superuser:
+            roles.add(Roles.SUPER_ADMIN)
+
+        branch = None
+        if user.branch_id:
+            branch = {
+                "id": user.branch_id,
+                "name": user.branch.name,
+            }
+
+        return Response({
+            "user": {
+                "id": user.id,
+                "mobile": str(user.mobile),
+                "is_active": user.is_active,
+                "is_mobile_verified": user.is_mobile_verified,
+            },
+            "roles": sorted(roles),
+            "branch": branch,
+            "permissions": sorted(user.get_all_permissions()),
+        })
 
 class ObtainTokenApiView(generics.CreateAPIView):
     serializer_class = ObtainTokenSerializer
@@ -337,3 +391,4 @@ class UserDetailUpdateDeleteApiView(generics.RetrieveUpdateDestroyAPIView):
             return UserUpdateSerializer
 
         return UserListSerializer
+

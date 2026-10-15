@@ -13,6 +13,7 @@ from .views import (
     ProfileApiView,
     UserListCreateApiView,
     UserDetailUpdateDeleteApiView,
+    CurrentUserCapabilitiesAPIView
 )
 from rest_framework_simplejwt.views import (
     TokenRefreshView,
@@ -77,5 +78,10 @@ urlpatterns = [
         "users/<int:pk>/",
         UserDetailUpdateDeleteApiView.as_view(),
         name="user-detail-update-delete",
+    ),
+    path(
+        "me/capabilities/",
+        CurrentUserCapabilitiesAPIView.as_view(),
+        name="current-user-capabilities",
     ),
 ]
