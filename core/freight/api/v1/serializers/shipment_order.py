@@ -1,9 +1,56 @@
+
 from rest_framework import serializers
 
-from freight.models import ShipmentOrder
+from freight.models import (
+    Branch,
+    Customer,
+    FreightCompany,
+    ShipmentOrder,
+)
+from freight.api.v1.serializers.branch import BranchSerializer
+from freight.api.v1.serializers.customer import CustomerSerializer
+from freight.api.v1.serializers.freight_company import (
+    FreightCompanySerializer,
+)
+
+
+
+class NestedPrimaryKeyRelatedField(
+    serializers.PrimaryKeyRelatedField
+):
+    def __init__(self, *args, serializer_class=None, **kwargs):
+        self.serializer_class = serializer_class
+        super().__init__(*args, **kwargs)
+
+    def to_representation(self, value):
+        model = self.queryset.model
+        instance = model.objects.get(pk=value.pk)
+
+        return self.serializer_class(
+            instance,
+            context=self.context,
+        ).data
 
 
 class ShipmentOrderSerializer(serializers.ModelSerializer):
+    branch = NestedPrimaryKeyRelatedField(
+        queryset=Branch.objects.all(),
+        serializer_class=BranchSerializer,
+    )
+
+    customer = NestedPrimaryKeyRelatedField(
+        queryset=Customer.objects.all(),
+        serializer_class=CustomerSerializer,
+        required=False,
+    )
+
+    preferred_freight_company = NestedPrimaryKeyRelatedField(
+        queryset=FreightCompany.objects.all(),
+        serializer_class=FreightCompanySerializer,
+        required=False,
+        allow_null=True,
+    )
+
     class Meta:
         model = ShipmentOrder
         fields = [
@@ -11,24 +58,18 @@ class ShipmentOrderSerializer(serializers.ModelSerializer):
             "public_id",
             "tracking_code",
             "barcode",
-
             "branch",
             "customer",
             "preferred_freight_company",
-
             "sender_name",
             "sender_mobile",
             "sender_address",
-
             "receiver_name",
             "receiver_mobile",
             "receiver_address",
-
             "shipment_description",
-
             "status",
             "submitted_at",
-
             "created_by",
             "created_at",
             "updated_at",
@@ -39,20 +80,13 @@ class ShipmentOrderSerializer(serializers.ModelSerializer):
             "public_id",
             "tracking_code",
             "barcode",
-
-            # Lifecycle is changed through dedicated business actions.
             "status",
             "submitted_at",
-
-            # Ownership/audit fields.
             "created_by",
-
             "created_at",
             "updated_at",
         ]
 
         extra_kwargs = {
-            "customer": {
-                "required": False,
-            },
+            "customer": {"required": False},
         }

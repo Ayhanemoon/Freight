@@ -124,12 +124,12 @@ class ShipmentOrderAPITests(FreightAPITestCase):
         self.assertEqual(response.status_code, 201)
 
         self.assertEqual(
-            response.data["branch"],
+            response.data["branch"]["id"],
             self.branch.id,
         )
 
         self.assertEqual(
-            response.data["customer"],
+            response.data["customer"]["id"],
             self.customer.id,
         )
 
@@ -160,12 +160,12 @@ class ShipmentOrderAPITests(FreightAPITestCase):
         self.assertEqual(response.status_code, 201)
 
         self.assertEqual(
-            response.data["branch"],
+            response.data["branch"]["id"],
             self.other_branch.id,
         )
 
         self.assertEqual(
-            response.data["customer"],
+            response.data["customer"]["id"],
             self.customer.id,
         )
 
@@ -368,12 +368,12 @@ class ShipmentOrderAPITests(FreightAPITestCase):
         self.assertEqual(response.status_code, 201)
 
         self.assertEqual(
-            response.data["branch"],
+            response.data["branch"]["id"],
             self.branch.id,
         )
 
         self.assertEqual(
-            response.data["customer"],
+            response.data["customer"]["id"],
             self.customer.id,
         )
 
