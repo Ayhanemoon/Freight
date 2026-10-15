@@ -7,6 +7,7 @@ from freight.api.v1.views import (
     CustomerOnboardingAPIView,
     CustomerBranchMembershipRequestAPIView,
     CustomerBranchMembershipApproveAPIView,
+    CurrentCustomerActiveMembershipsAPIView,
     CustomerRegistrationInvitationAPIView,
     FreightCompanyViewSet,
     ShipmentOrderViewSet,
@@ -269,6 +270,12 @@ urlpatterns = [
         "customer-branch-memberships/<int:membership_id>/approve/",
         CustomerBranchMembershipApproveAPIView.as_view(),
         name="customer-branch-membership-approve",
+    ),
+
+    path(
+        "customer-branch-memberships/active/",
+        CurrentCustomerActiveMembershipsAPIView.as_view(),
+        name="customer-active-branch-memberships",
     ),
 
     path(

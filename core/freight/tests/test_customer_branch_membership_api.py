@@ -613,3 +613,126 @@ class CustomerBranchMembershipApproveAPITests(
             response.data["code"],
             "NOT_FOUND",
         )
+
+class CurrentCustomerActiveMembershipsAPITests(FreightAPITestCase):
+    def setUp(self):
+        self.branch = self.create_branch(
+            name="Tehran Center",
+            code="THR",
+        )
+        self.other_branch = self.create_branch(
+            name="Karaj Center",
+            code="KRJ",
+            city="Karaj",
+        )
+
+        self.customer_user = self.create_user(
+            mobile="09121112221",
+        )
+        self.customer = self.create_customer(
+            user=self.customer_user,
+        )
+
+        self.other_customer_user = self.create_user(
+            mobile="09121112222",
+        )
+        self.other_customer = self.create_customer(
+            user=self.other_customer_user,
+        )
+
+        self.url = reverse(
+            "freight:freight-api-v1:"
+            "customer-active-branch-memberships"
+        )
+
+    def create_membership(self, customer, branch, membership_status):
+        return CustomerBranchMembership.objects.create(
+            customer=customer,
+            branch=branch,
+            status=membership_status,
+        )
+
+    def test_requires_authentication(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_returns_only_own_active_memberships(self):
+        self.create_membership(
+            self.customer,
+            self.branch,
+            CustomerBranchMembership.Status.ACTIVE,
+        )
+        self.create_membership(
+            self.customer,
+            self.other_branch,
+            CustomerBranchMembership.Status.ACTIVE,
+        )
+
+        # This membership must never appear in the current customer's list.
+        self.create_membership(
+            self.other_customer,
+            self.branch,
+            CustomerBranchMembership.Status.ACTIVE,
+        )
+
+        self.client.force_authenticate(user=self.customer_user)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+
+        self.assertEqual(len(results), 2)
+        self.assertEqual(
+            {item["branch"]["id"] for item in results},
+            {self.branch.id, self.other_branch.id},
+        )
+        self.assertTrue(
+            all(item["status"] == "active" for item in results)
+        )
+    def test_excludes_non_active_memberships(self):
+        self.create_membership(
+            self.customer,
+            self.branch,
+            CustomerBranchMembership.Status.PENDING,
+        )
+        self.create_membership(
+            self.customer,
+            self.other_branch,
+            CustomerBranchMembership.Status.SUSPENDED,
+        )
+
+        self.client.force_authenticate(user=self.customer_user)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["results"], [])
+
+    def test_excludes_memberships_for_inactive_branches(self):
+        inactive_branch = self.create_branch(
+            name="Inactive Branch",
+            code="INA",
+            is_active=False,
+        )
+        self.create_membership(
+            self.customer,
+            inactive_branch,
+            CustomerBranchMembership.Status.ACTIVE,
+        )
+
+        self.client.force_authenticate(user=self.customer_user)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["results"], [])
+
+    def test_user_without_customer_profile_gets_empty_list(self):
+        user_without_customer = self.create_user(
+            mobile="09121112223",
+        )
+
+        self.client.force_authenticate(user=user_without_customer)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["results"], [])

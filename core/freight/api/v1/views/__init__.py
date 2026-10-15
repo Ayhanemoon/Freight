@@ -40,6 +40,7 @@ from .customer_onboarding import CustomerOnboardingAPIView
 from .customer_branch_membership import (
     CustomerBranchMembershipRequestAPIView,
     CustomerBranchMembershipApproveAPIView,
+    CurrentCustomerActiveMembershipsAPIView,
 )
 from .customer_registration_invitation import (
     CustomerRegistrationInvitationAPIView,

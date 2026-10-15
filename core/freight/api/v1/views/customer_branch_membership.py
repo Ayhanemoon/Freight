@@ -1,5 +1,5 @@
 from django.shortcuts import get_object_or_404
-from rest_framework import status
+from rest_framework import generics,status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -73,4 +73,27 @@ class CustomerBranchMembershipApproveAPIView(APIView):
         return Response(
             response_serializer.data,
             status=status.HTTP_200_OK,
+        )
+
+
+class CurrentCustomerActiveMembershipsAPIView(generics.ListAPIView):
+    """
+    Return active branch memberships belonging to the authenticated customer.
+
+    Only active memberships for active branches are returned.
+    Other customers' memberships are never exposed.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = CustomerBranchMembershipSerializer
+
+    def get_queryset(self):
+        return (
+            CustomerBranchMembership.objects
+            .filter(
+                customer__user=self.request.user,
+                status=CustomerBranchMembership.Status.ACTIVE,
+                branch__is_active=True,
+            )
+            .select_related("customer", "branch")
+            .order_by("branch__name")
         )
