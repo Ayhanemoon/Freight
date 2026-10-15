@@ -6,6 +6,7 @@ from rest_framework.response import Response
 
 from freight.api.v1.serializers import (
     ShipmentOrderSerializer,
+    ShipmentOrderListSerializer,
     ShipmentStatusHistorySerializer,
 )
 from freight.services import change_order_status
@@ -39,6 +40,12 @@ class ShipmentOrderViewSet(ModelViewSet):
         .prefetch_related("parcels")
         .all()
     )
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return ShipmentOrderListSerializer
+
+        return ShipmentOrderSerializer
 
     def get_queryset(self):
         user = self.request.user

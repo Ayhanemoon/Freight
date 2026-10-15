@@ -22,12 +22,12 @@ class NestedPrimaryKeyRelatedField(
         self.serializer_class = serializer_class
         super().__init__(*args, **kwargs)
 
-    def to_representation(self, value):
-        model = self.queryset.model
-        instance = model.objects.get(pk=value.pk)
+    def use_pk_only_optimization(self):
+        return False
 
+    def to_representation(self, value):
         return self.serializer_class(
-            instance,
+            value,
             context=self.context,
         ).data
 
@@ -90,3 +90,16 @@ class ShipmentOrderSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "customer": {"required": False},
         }
+
+class ShipmentOrderListSerializer(ShipmentOrderSerializer):
+    branch = serializers.PrimaryKeyRelatedField(
+        read_only=True,
+    )
+
+    customer = serializers.PrimaryKeyRelatedField(
+        read_only=True,
+    )
+
+    preferred_freight_company = serializers.PrimaryKeyRelatedField(
+        read_only=True,
+    )
