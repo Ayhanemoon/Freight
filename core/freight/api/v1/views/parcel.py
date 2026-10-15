@@ -1,5 +1,5 @@
 
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
 
@@ -96,7 +96,33 @@ class ParcelViewSet(ModelViewSet):
         if not user.branch_id:
             return queryset.none()
 
-        return queryset.filter(order__branch_id=user.branch_id)
+        else:
+            queryset = queryset.filter(
+                order__branch_id=user.branch_id,
+            )
+
+        # Optionally filter the accessible parcels by shipment order.
+        order_id = self.request.query_params.get("order")
+
+        if order_id:
+            try:
+                order_id = int(order_id)
+            except (TypeError, ValueError):
+                
+
+                raise ValidationError({
+                    "order": "Must be a valid shipment-order ID."
+                })
+
+            if order_id <= 0:
+
+                raise ValidationError({
+                    "order": "Must be a positive shipment-order ID."
+                })
+
+            queryset = queryset.filter(order_id=order_id)
+
+        return queryset
 
     def _check_order_scope(self, order):
         user = self.request.user
