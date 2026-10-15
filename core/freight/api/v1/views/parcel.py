@@ -1,4 +1,5 @@
-
+from rest_framework import status
+from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
@@ -33,6 +34,7 @@ def can_access_parcels(user):
         "freight.view_parcel",
         "freight.add_parcel",
         "freight.change_parcel",
+        "freight.delete_parcel",
         "freight.verify_collection_task",
     )
 
@@ -46,16 +48,21 @@ def can_manage_declared_parcels(user, action):
     if is_cargo_collector_user(user):
         return False
 
+    if action == "delete":
+        return has_any_permission(user, "freight.delete_parcel")
+
     if action == "create":
         permissions = (
             "freight.add_parcel",
             "freight.verify_collection_task",
         )
-    else:
+    elif action == "update":
         permissions = (
             "freight.change_parcel",
             "freight.verify_collection_task",
         )
+    else:
+        return False
 
     return has_any_permission(user, *permissions)
 
@@ -196,6 +203,27 @@ class ParcelViewSet(ModelViewSet):
         serializer.save()
 
     def destroy(self, request, *args, **kwargs):
-        raise PermissionDenied(
-            "Parcels cannot be deleted through this endpoint."
-        )
+        parcel = self.get_object()
+        order = parcel.order
+        user = request.user
+
+        # Superusers follow the staff path, not customer restrictions.
+        if is_customer_user(user) and not user.is_superuser:
+            self._check_order_scope(order)
+
+            if order.status != ShipmentOrder.Status.DRAFT:
+                raise PermissionDenied(
+                    "Customers can delete parcels only from draft orders."
+                )
+        else:
+            self._check_order_scope(order)
+
+            if not can_manage_declared_parcels(user, "delete"):
+                raise PermissionDenied(
+                    "You do not have permission to delete parcels."
+                )
+
+            self._check_order_lifecycle(order)
+
+        self.perform_destroy(parcel)
+        return Response(status=status.HTTP_204_NO_CONTENT)
