@@ -4,6 +4,8 @@ from freight.models import (
     Branch,
     CollectionTask,
     Customer,
+    CustomerBranchMembership,
+    CustomerRegistrationInvitation,
     FreightCompany,
     ShipmentOrder,
     ShipmentStatusHistory,
@@ -208,3 +210,143 @@ class ShipmentStatusHistoryAdmin(admin.ModelAdmin):
         "created_at",
     )
 
+
+@admin.register(CustomerBranchMembership)
+class CustomerBranchMembershipAdmin(admin.ModelAdmin):
+    list_display = (
+        "customer",
+        "branch",
+        "status",
+        "created_at",
+        "approved_at",
+        "approved_by",
+    )
+    list_filter = ("status", "branch")
+    search_fields = (
+        "customer__first_name",
+        "customer__last_name",
+        "customer__company_name",
+        "customer__user__mobile",
+        "branch__name",
+    )
+    list_select_related = ("customer", "branch", "approved_by")
+    readonly_fields = ("created_at", "approved_at", "approved_by")
+
+
+@admin.register(CustomerRegistrationInvitation)
+class CustomerRegistrationInvitationAdmin(admin.ModelAdmin):
+    list_display = (
+        "branch",
+        "customer",
+        "target_mobile",
+        "expires_at",
+        "max_uses",
+        "used_count",
+        "revoked_at",
+        "created_at",
+    )
+    list_filter = ("branch", "revoked_at")
+    search_fields = (
+        "target_mobile",
+        "branch__name",
+        "customer__first_name",
+        "customer__last_name",
+        "customer__company_name",
+        "created_by__mobile",
+    )
+    list_select_related = ("branch", "customer", "created_by")
+    readonly_fields = (
+        "token_hash",
+        "used_count",
+        "created_by",
+        "created_at",
+        "revoked_at",
+    )
+
+    def has_add_permission(self, request):
+        # Invitations should be created through the invitation workflow.
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        # Preserve invitation audit history; use the revocation workflow.
+        return False
+
+
+@admin.register(DispatchBatch)
+class DispatchBatchAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "branch",
+        "dispatcher",
+        "status",
+        "scheduled_at",
+        "dispatched_at",
+        "completed_at",
+        "created_at",
+    )
+    list_filter = ("branch", "status")
+    search_fields = ("id", "branch__name", "dispatcher__mobile")
+    list_select_related = ("branch", "dispatcher", "created_by")
+    readonly_fields = (
+        "status",
+        "dispatched_at",
+        "completed_at",
+        "created_by",
+        "created_at",
+        "updated_at",
+    )
+
+
+@admin.register(DispatchOrder)
+class DispatchOrderAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "batch",
+        "order",
+        "status",
+        "created_at",
+    )
+    list_filter = ("status",)
+    search_fields = (
+        "id",
+        "batch__id",
+        "order__tracking_code",
+        "order__barcode",
+    )
+    list_select_related = ("batch", "order")
+    readonly_fields = ("status", "created_at", "updated_at")
+
+
+@admin.register(DispatchFreightAssignment)
+class DispatchFreightAssignmentAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "dispatch_order",
+        "freight_company",
+        "status",
+        "payer",
+        "freight_amount",
+        "freight_invoice_number",
+        "assigned_at",
+        "approved_at",
+    )
+    list_filter = ("status", "payer", "freight_company")
+    search_fields = (
+        "dispatch_order__order__tracking_code",
+        "dispatch_order__order__barcode",
+        "freight_company__name",
+        "freight_invoice_number",
+    )
+    list_select_related = ("dispatch_order", "freight_company", "created_by")
+    readonly_fields = (
+        "status",
+        "freight_amount",
+        "rejection_reason",
+        "freight_invoice_number",
+        "freight_invoice_file",
+        "assigned_at",
+        "approved_at",
+        "created_by",
+        "created_at",
+        "updated_at",
+    )
