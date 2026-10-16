@@ -1,4 +1,4 @@
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, PermissionDenied
 from django.shortcuts import get_object_or_404
 
 from rest_framework import status
@@ -6,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
-from rest_framework.mixins import ListModelMixin, RetrieveModelMixin
+from rest_framework.mixins import CreateModelMixin, ListModelMixin, RetrieveModelMixin
 
 from freight.permissions.api import (
     CanAccessCollection,
@@ -14,6 +14,9 @@ from freight.permissions.api import (
     CanVerifyCollection,
     CanFailCollection,
     IsCargoCollector,
+)
+from freight.permissions.capabilities import (
+    has_collection_management_capability,
 )
 
 from freight.api.v1.serializers.collection_task import (
@@ -55,6 +58,7 @@ def get_collection_task_for_user(task_id, user):
     )
 
 class CollectionTaskViewSet(
+    CreateModelMixin,
     ListModelMixin,
     RetrieveModelMixin,
     GenericViewSet,
@@ -115,6 +119,30 @@ class CollectionTaskViewSet(
             queryset = queryset.filter(order__branch_id=branch_id)
 
         return queryset
+
+    def perform_create(self, serializer):
+        user = self.request.user
+
+        if not has_collection_management_capability(user):
+            raise PermissionDenied(
+                "You do not have permission to create collection tasks."
+            )
+
+        order = serializer.validated_data["order"]
+
+        # SuperAdmin may create tasks for any branch.
+        if not user.is_superuser:
+            if not user.branch_id:
+                raise PermissionDenied(
+                    "Branch is required to create collection tasks."
+                )
+
+            if order.branch_id != user.branch_id:
+                raise PermissionDenied(
+                    "You cannot create a collection task for another branch."
+                )
+
+        serializer.save()
     
 
 
