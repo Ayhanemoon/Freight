@@ -81,20 +81,40 @@ class CollectionTaskViewSet(
 
     def get_queryset(self):
         user = self.request.user
-
         queryset = self.queryset
 
+        # Establish the user's access scope first.
         if user.is_superuser:
-            return queryset
+            pass
 
-        if user.groups.filter(name="CargoCollector").exists():
-            return queryset.filter(
-                collector=user
-            )
+        elif user.groups.filter(name="CargoCollector").exists():
+            queryset = queryset.filter(collector=user)
 
-        return queryset.filter(
-            order__branch=user.branch
-        )
+        elif user.branch_id:
+            queryset = queryset.filter(order__branch_id=user.branch_id)
+
+        else:
+            queryset = queryset.none()
+
+        # Apply the optional branch filter within that access scope.
+        branch_param = self.request.query_params.get("branch")
+
+        if branch_param is not None:
+            try:
+                branch_id = int(branch_param)
+            except (TypeError, ValueError):
+                raise ValidationError({
+                    "branch": "Must be a valid branch ID."
+                })
+
+            if branch_id <= 0:
+                raise ValidationError({
+                    "branch": "Must be a positive branch ID."
+                })
+
+            queryset = queryset.filter(order__branch_id=branch_id)
+
+        return queryset
     
 
 

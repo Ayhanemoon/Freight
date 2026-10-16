@@ -87,42 +87,41 @@ class ParcelViewSet(ModelViewSet):
         queryset = self.queryset
 
         if not can_access_parcels(user):
-            return queryset.none()
+            queryset = queryset.none()
 
-        if user.is_superuser:
-            return queryset
+        elif user.is_superuser:
+            pass
 
-        if is_customer_user(user):
-            return queryset.filter(order__customer__user_id=user.id)
+        elif is_customer_user(user):
+            queryset = queryset.filter(
+                order__customer__user_id=user.id,
+            )
 
-        if is_cargo_collector_user(user):
-            return queryset.filter(
+        elif is_cargo_collector_user(user):
+            queryset = queryset.filter(
                 order__collection_task__collector_id=user.id,
             )
 
-        if not user.branch_id:
-            return queryset.none()
+        elif not user.branch_id:
+            queryset = queryset.none()
 
         else:
             queryset = queryset.filter(
                 order__branch_id=user.branch_id,
             )
 
-        # Optionally filter the accessible parcels by shipment order.
+        # Apply the optional order filter after access scoping.
         order_id = self.request.query_params.get("order")
 
         if order_id:
             try:
                 order_id = int(order_id)
             except (TypeError, ValueError):
-                
-
                 raise ValidationError({
                     "order": "Must be a valid shipment-order ID."
                 })
 
             if order_id <= 0:
-
                 raise ValidationError({
                     "order": "Must be a positive shipment-order ID."
                 })
