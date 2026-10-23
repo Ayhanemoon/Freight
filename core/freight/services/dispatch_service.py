@@ -16,6 +16,7 @@ from freight.permissions.capabilities import (
     has_dispatch_execution_capability,
 )
 
+from freight.services.shipment_order import change_order_status
 
 BATCH_TRANSITIONS = {
     DispatchBatch.Status.DRAFT: {
@@ -446,6 +447,13 @@ def start_dispatch(
 
         dispatch_order.status = DispatchOrder.Status.IN_PROGRESS
 
+        change_order_status(
+            order=dispatch_order.order,
+            new_status=ShipmentOrder.Status.DISPATCHED_TO_FREIGHT,
+            changed_by=started_by,
+            note="Shipment dispatched to freight company.",
+        )
+
         dispatch_order.save(
             update_fields=[
                 "status",
@@ -536,6 +544,13 @@ def mark_freight_assignment_delivered(
 
     dispatch_order.status = DispatchOrder.Status.DELIVERED
 
+    change_order_status(
+        order=dispatch_order.order,
+        new_status=ShipmentOrder.Status.HANDOVER_PENDING_APPROVAL,
+        changed_by=delivered_by,
+        note=notes or "Freight handover submitted for approval.",
+    )
+
     dispatch_order.save(
         update_fields=[
             "status",
@@ -603,26 +618,12 @@ def approve_dispatch_handover(
         ]
     )
 
-    old_status = order.status
-    new_status = ShipmentOrder.Status.DISPATCHED_TO_FREIGHT
-
-    if old_status != new_status:
-        order.status = new_status
-
-        order.save(
-            update_fields=[
-                "status",
-                "updated_at",
-            ]
-        )
-
-        ShipmentStatusHistory.objects.create(
-            shipment=order,
-            from_status=old_status,
-            to_status=new_status,
-            changed_by=approved_by,
-            note=notes,
-        )
+    change_order_status(
+        order=order,
+        new_status=ShipmentOrder.Status.HANDOVER_APPROVED,
+        changed_by=approved_by,
+        note=notes or "Freight handover approved.",
+    )
 
     return dispatch_order
 
@@ -803,6 +804,20 @@ def complete_dispatch_batch(
             "before the batch can be completed."
         )
 
+    delivered_orders = dispatch_orders.filter(
+        status=DispatchOrder.Status.DELIVERED
+    ).select_related("order")
+
+    for dispatch_order in delivered_orders:
+        if (
+            dispatch_order.order.status
+            != ShipmentOrder.Status.HANDOVER_APPROVED
+        ):
+            raise ValidationError(
+                "All delivered shipments must have their "
+                "handover approved before completing the batch."
+            )
+
     now = timezone.now()
 
     batch.status = DispatchBatch.Status.COMPLETED
@@ -815,6 +830,14 @@ def complete_dispatch_batch(
             "updated_at",
         ]
     )
+
+    for dispatch_order in delivered_orders:
+        change_order_status(
+            order=dispatch_order.order,
+            new_status=ShipmentOrder.Status.COMPLETED,
+            changed_by=completed_by,
+            note="Dispatch completed.",
+        )
 
     return batch
 
