@@ -38,9 +38,13 @@ def assign_collector(*, task, collector):
     This function only validates business rules.
     """
 
-    if task.status != CollectionTask.Status.PENDING:
+    if task.status not in {
+        CollectionTask.Status.PENDING,
+        CollectionTask.Status.ASSIGNED,
+    }:
         raise ValidationError(
-            "Only pending collection tasks can be assigned."
+            "Collector can only be assigned or changed before "
+            "collection starts."
         )
 
     if not collector.is_active:
