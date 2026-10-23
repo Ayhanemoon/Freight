@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from freight.api.v1.views import (
     BranchViewSet,
+    BranchReceiveShipmentAPIView,
     CustomerViewSet,
     CustomerOnboardingAPIView,
     CustomerBranchMembershipRequestAPIView,
@@ -283,6 +284,13 @@ urlpatterns = [
         CustomerRegistrationInvitationAPIView.as_view(),
         name="customer-registration-invitation",
     ),
+    
+    path(
+        "shipment-orders/<int:order_id>/receive-at-branch/",
+        BranchReceiveShipmentAPIView.as_view(),
+        name="shipment-order-receive-at-branch",
+    ),
+    
     # Include the router URLs for viewsets
     path("", include(router.urls)),
 ]

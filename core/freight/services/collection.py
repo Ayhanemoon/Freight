@@ -2,7 +2,8 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from freight.models import CollectionTask, Parcel
+from freight.models import CollectionTask, Parcel, ShipmentOrder
+from freight.services.shipment_order import change_order_status
 from freight.permissions.capabilities import (
     has_collection_failure_capability,
     has_collection_verification_capability,
@@ -336,6 +337,13 @@ def complete_collection(
             "completed_at",
             "updated_at",
         ]
+    )
+
+    change_order_status(
+        order=task.order,
+        new_status=ShipmentOrder.Status.COLLECTED,
+        changed_by=completed_by,
+        note="Collection completed.",
     )
 
     return task

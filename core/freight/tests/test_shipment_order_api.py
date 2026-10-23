@@ -816,3 +816,205 @@ class ShipmentOrderAPITests(FreightAPITestCase):
         )
 
         self.assertEqual(response.status_code, 401)
+
+    
+    def test_operator_can_start_review(self):
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.customer_user,
+            status=ShipmentOrder.Status.SUBMITTED,
+        )
+
+        self.authenticate(self.operator)
+
+        response = self.client.post(
+            reverse(
+                "freight:freight-api-v1:shipment-order-start-review",
+                kwargs={"pk": order.pk},
+            ),
+            {"note": "Review started."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        order.refresh_from_db()
+        self.assertEqual(
+            order.status,
+            ShipmentOrder.Status.OPERATOR_REVIEW,
+        )
+
+        self.assertTrue(
+            ShipmentStatusHistory.objects.filter(
+                shipment=order,
+                from_status=ShipmentOrder.Status.SUBMITTED,
+                to_status=ShipmentOrder.Status.OPERATOR_REVIEW,
+                changed_by=self.operator,
+                note="Review started.",
+            ).exists()
+        )
+
+    def test_operator_can_approve_collection(self):
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.customer_user,
+            status=ShipmentOrder.Status.OPERATOR_REVIEW,
+        )
+
+        self.authenticate(self.operator)
+
+        response = self.client.post(
+            reverse(
+                "freight:freight-api-v1:shipment-order-approve-collection",
+                kwargs={"pk": order.pk},
+            ),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        order.refresh_from_db()
+        self.assertEqual(
+            order.status,
+            ShipmentOrder.Status.APPROVED_FOR_COLLECTION,
+        )
+
+        self.assertTrue(
+            ShipmentStatusHistory.objects.filter(
+                shipment=order,
+                from_status=ShipmentOrder.Status.OPERATOR_REVIEW,
+                to_status=ShipmentOrder.Status.APPROVED_FOR_COLLECTION,
+                changed_by=self.operator,
+            ).exists()
+        )
+
+    def test_operator_can_reject_order_under_review(self):
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.customer_user,
+            status=ShipmentOrder.Status.OPERATOR_REVIEW,
+        )
+
+        self.authenticate(self.operator)
+
+        response = self.client.post(
+            reverse(
+                "freight:freight-api-v1:shipment-order-reject",
+                kwargs={"pk": order.pk},
+            ),
+            {"reason": "Invalid shipment details."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        order.refresh_from_db()
+        self.assertEqual(
+            order.status,
+            ShipmentOrder.Status.REJECTED,
+        )
+
+        self.assertTrue(
+            ShipmentStatusHistory.objects.filter(
+                shipment=order,
+                from_status=ShipmentOrder.Status.OPERATOR_REVIEW,
+                to_status=ShipmentOrder.Status.REJECTED,
+                changed_by=self.operator,
+                note="Invalid shipment details.",
+            ).exists()
+        )
+
+    def test_operator_cannot_reject_order_outside_review(self):
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.customer_user,
+            status=ShipmentOrder.Status.SUBMITTED,
+        )
+
+        self.authenticate(self.operator)
+
+        response = self.client.post(
+            reverse(
+                "freight:freight-api-v1:shipment-order-reject",
+                kwargs={"pk": order.pk},
+            ),
+            {"reason": "Invalid details."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        order.refresh_from_db()
+        self.assertEqual(
+            order.status,
+            ShipmentOrder.Status.SUBMITTED,
+        )
+
+    def test_branch_manager_can_cancel_order(self):
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.customer_user,
+            status=ShipmentOrder.Status.SUBMITTED,
+        )
+
+        self.authenticate(self.branch_manager)
+
+        response = self.client.post(
+            reverse(
+                "freight:freight-api-v1:shipment-order-cancel",
+                kwargs={"pk": order.pk},
+            ),
+            {"note": "Cancelled by branch manager."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        order.refresh_from_db()
+        self.assertEqual(
+            order.status,
+            ShipmentOrder.Status.CANCELLED,
+        )
+
+        self.assertTrue(
+            ShipmentStatusHistory.objects.filter(
+                shipment=order,
+                from_status=ShipmentOrder.Status.SUBMITTED,
+                to_status=ShipmentOrder.Status.CANCELLED,
+                changed_by=self.branch_manager,
+                note="Cancelled by branch manager.",
+            ).exists()
+        )
+
+    def test_operator_cannot_cancel_order_without_permission(self):
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.customer_user,
+            status=ShipmentOrder.Status.SUBMITTED,
+        )
+
+        self.authenticate(self.operator)
+
+        response = self.client.post(
+            reverse(
+                "freight:freight-api-v1:shipment-order-cancel",
+                kwargs={"pk": order.pk},
+            ),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+        order.refresh_from_db()
+        self.assertEqual(
+            order.status,
+            ShipmentOrder.Status.SUBMITTED,
+        )

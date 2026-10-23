@@ -1,4 +1,5 @@
 from .branch import BranchViewSet
+from .branch_receiving import BranchReceiveShipmentAPIView
 from .customer import CustomerViewSet
 from .freight_company import FreightCompanyViewSet
 from .shipment_order import ShipmentOrderViewSet
