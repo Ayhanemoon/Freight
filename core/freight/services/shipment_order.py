@@ -14,7 +14,6 @@ ALLOWED_ORDER_TRANSITIONS = {
     ShipmentOrder.Status.SUBMITTED: {
         ShipmentOrder.Status.OPERATOR_REVIEW,
         ShipmentOrder.Status.CANCELLED,
-        ShipmentOrder.Status.REJECTED,
     },
 
     ShipmentOrder.Status.OPERATOR_REVIEW: {

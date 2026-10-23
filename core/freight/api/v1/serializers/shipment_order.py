@@ -103,3 +103,18 @@ class ShipmentOrderListSerializer(ShipmentOrderSerializer):
     preferred_freight_company = serializers.PrimaryKeyRelatedField(
         read_only=True,
     )
+
+class ShipmentOrderActionSerializer(serializers.Serializer):
+    note = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=2000,
+    )
+
+
+class ShipmentOrderRejectSerializer(serializers.Serializer):
+    reason = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        max_length=2000,
+    )

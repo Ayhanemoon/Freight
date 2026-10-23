@@ -1,4 +1,7 @@
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import (
+    PermissionDenied,
+    ValidationError as DRFValidationError,
+)
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action
@@ -8,6 +11,8 @@ from freight.api.v1.serializers import (
     ShipmentOrderSerializer,
     ShipmentOrderListSerializer,
     ShipmentStatusHistorySerializer,
+    ShipmentOrderActionSerializer,
+    ShipmentOrderRejectSerializer,
 )
 from freight.services import change_order_status
 from freight.models import (
@@ -21,6 +26,8 @@ from freight.permissions.capabilities import (
     is_cargo_collector_user,
     is_customer_user,
     is_dispatcher_user,
+    has_shipment_order_review_capability,
+    has_shipment_order_cancel_capability,
 )
 
 
@@ -272,3 +279,156 @@ class ShipmentOrderViewSet(ModelViewSet):
         )
 
         return Response(serializer.data)
+
+    
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="start-review",
+        url_name="start-review",
+    )
+    def start_review(self, request, pk=None):
+        order = self.get_object()
+        user = request.user
+
+        if not has_shipment_order_review_capability(user):
+            raise PermissionDenied(
+                "You do not have permission to review shipment orders."
+            )
+
+        serializer = ShipmentOrderActionSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        order = change_order_status(
+            order=order,
+            new_status=ShipmentOrder.Status.OPERATOR_REVIEW,
+            changed_by=user,
+            note=(
+                serializer.validated_data.get("note")
+                or "Operator started reviewing shipment order."
+            ),
+        )
+
+        return Response(
+            self.get_serializer(order).data,
+            status=200,
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="approve-collection",
+        url_name="approve-collection",
+    )
+    def approve_collection(self, request, pk=None):
+        order = self.get_object()
+        user = request.user
+
+        if not has_shipment_order_review_capability(user):
+            raise PermissionDenied(
+                "You do not have permission to approve shipment orders."
+            )
+
+        serializer = ShipmentOrderActionSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        order = change_order_status(
+            order=order,
+            new_status=ShipmentOrder.Status.APPROVED_FOR_COLLECTION,
+            changed_by=user,
+            note=(
+                serializer.validated_data.get("note")
+                or "Shipment order approved for collection."
+            ),
+        )
+
+        return Response(
+            self.get_serializer(order).data,
+            status=200,
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="reject",
+        url_name="reject",
+    )
+    def reject(self, request, pk=None):
+        order = self.get_object()
+        user = request.user
+
+        if not has_shipment_order_review_capability(user):
+            raise PermissionDenied(
+                "You do not have permission to reject shipment orders."
+            )
+
+        if order.status != ShipmentOrder.Status.OPERATOR_REVIEW:
+            raise DRFValidationError({
+                "status": (
+                    "Only shipment orders under operator review "
+                    "can be rejected."
+                )
+            })
+
+        serializer = ShipmentOrderRejectSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        reason = serializer.validated_data["reason"].strip()
+
+        if not reason:
+            raise DRFValidationError({
+                "reason": "A rejection reason is required."
+            })
+
+        order = change_order_status(
+            order=order,
+            new_status=ShipmentOrder.Status.REJECTED,
+            changed_by=user,
+            note=reason,
+        )
+
+        return Response(
+            self.get_serializer(order).data,
+            status=200,
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="cancel",
+        url_name="cancel",
+    )
+    def cancel(self, request, pk=None):
+        order = self.get_object()
+        user = request.user
+
+        if not has_shipment_order_cancel_capability(user):
+            raise PermissionDenied(
+                "You do not have permission to cancel shipment orders."
+            )
+
+        serializer = ShipmentOrderActionSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        order = change_order_status(
+            order=order,
+            new_status=ShipmentOrder.Status.CANCELLED,
+            changed_by=user,
+            note=(
+                serializer.validated_data.get("note")
+                or "Shipment order cancelled."
+            ),
+        )
+
+        return Response(
+            self.get_serializer(order).data,
+            status=200,
+        )

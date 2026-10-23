@@ -344,3 +344,32 @@ def has_shipment_order_change_capability(user):
         user,
         "freight.change_shipmentorder",
     )
+
+def has_shipment_order_review_capability(user):
+    """
+    Review shipment orders within the user's permitted scope.
+    Branch/object scope is enforced separately.
+    """
+    if has_branch_admin_capability(user):
+        return True
+
+    if is_operator_user(user):
+        return True
+
+    return has_any_permission(
+        user,
+        "freight.change_shipmentorder",
+    )
+
+
+def has_shipment_order_cancel_capability(user):
+    """
+    Cancellation is a separate workflow action.
+    """
+    if has_branch_admin_capability(user):
+        return True
+
+    return has_permission(
+        user,
+        "freight.change_shipmentorder",
+    )
