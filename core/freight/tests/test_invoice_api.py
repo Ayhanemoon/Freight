@@ -567,3 +567,73 @@ class InvoiceAPITests(FreightAPITestCase):
                 pk=charge.pk,
             ).exists()
         )
+
+    
+    def test_user_with_permission_can_update_invoice_number_and_notes(self):
+        self.grant_permission(self.operator, "change_invoice")
+
+        response = self.client.patch(
+            self.detail_url,
+            {
+                "invoice_number": "INV-THR-UPDATED",
+                "notes": "Corrected invoice details",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["invoice_number"], "INV-THR-UPDATED")
+        self.assertEqual(response.data["notes"], "Corrected invoice details")
+
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.invoice_number, "INV-THR-UPDATED")
+        self.assertEqual(self.invoice.notes, "Corrected invoice details")
+
+
+    def test_user_without_permission_cannot_update_invoice(self):
+        response = self.client.patch(
+            self.detail_url,
+            {"notes": "Unauthorized change"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+    def test_invoice_number_must_be_unique_when_updating(self):
+        self.grant_permission(self.operator, "change_invoice")
+
+        response = self.client.patch(
+            self.detail_url,
+            {"invoice_number": self.other_invoice.invoice_number},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.invoice_number, "INV-THR-001")
+
+
+    def test_update_rejects_protected_fields(self):
+        self.grant_permission(self.operator, "change_invoice")
+
+        response = self.client.patch(
+            self.detail_url,
+            {"total_cost": "1.00"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+    def test_user_cannot_update_invoice_outside_branch(self):
+        self.grant_permission(self.operator, "change_invoice")
+
+        response = self.client.patch(
+            self.other_detail_url,
+            {"notes": "Cross-branch change"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

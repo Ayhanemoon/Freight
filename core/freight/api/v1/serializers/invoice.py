@@ -79,3 +79,43 @@ class InvoiceSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+
+
+class InvoiceUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Invoice
+        fields = [
+            "invoice_number",
+            "notes",
+        ]
+
+    def to_internal_value(self, data):
+        allowed_fields = set(self.fields.keys())
+        submitted_fields = set(data.keys())
+        unexpected_fields = submitted_fields - allowed_fields
+
+        if unexpected_fields:
+            raise serializers.ValidationError({
+                field: "This field cannot be updated."
+                for field in sorted(unexpected_fields)
+            })
+
+        return super().to_internal_value(data)
+
+    def validate_invoice_number(self, value):
+        queryset = Invoice.objects.filter(
+            invoice_number=value,
+        )
+
+        if self.instance:
+            queryset = queryset.exclude(
+                pk=self.instance.pk,
+            )
+
+        if queryset.exists():
+            raise serializers.ValidationError(
+                "An invoice with this number already exists."
+            )
+
+        return value

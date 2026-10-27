@@ -8,7 +8,10 @@ from .shipment_order import (
     ShipmentOrderRejectSerializer,
 )
 from .parcel import ParcelSerializer
-from .invoice import InvoiceSerializer
+from .invoice import (
+    InvoiceSerializer,
+    InvoiceUpdateSerializer,
+)
 from .invoice_charge import InvoiceChargeSerializer
 from .invoice_create import (
     InvoiceChargeInputSerializer,
