@@ -1018,3 +1018,121 @@ class ShipmentOrderAPITests(FreightAPITestCase):
             order.status,
             ShipmentOrder.Status.SUBMITTED,
         )
+
+    def test_branch_manager_can_mark_invoiced_order_ready_for_dispatch(self):
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.customer_user,
+            status=ShipmentOrder.Status.INVOICE_REGISTERED,
+        )
+
+        self.authenticate(self.branch_manager)
+
+        response = self.client.post(
+            reverse(
+                "freight:freight-api-v1:shipment-order-ready-for-dispatch",
+                kwargs={"pk": order.pk},
+            ),
+            {"note": "Invoice checked."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        order.refresh_from_db()
+        self.assertEqual(
+            order.status,
+            ShipmentOrder.Status.READY_FOR_DISPATCH,
+        )
+
+        self.assertTrue(
+            ShipmentStatusHistory.objects.filter(
+                shipment=order,
+                from_status=ShipmentOrder.Status.INVOICE_REGISTERED,
+                to_status=ShipmentOrder.Status.READY_FOR_DISPATCH,
+                changed_by=self.branch_manager,
+                note="Invoice checked.",
+            ).exists()
+        )
+
+    def test_cannot_mark_order_ready_for_dispatch_before_invoice_registration(self):
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.customer_user,
+            status=ShipmentOrder.Status.RECEIVED_AT_BRANCH,
+        )
+
+        self.authenticate(self.branch_manager)
+
+        response = self.client.post(
+            reverse(
+                "freight:freight-api-v1:shipment-order-ready-for-dispatch",
+                kwargs={"pk": order.pk},
+            ),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        order.refresh_from_db()
+        self.assertEqual(
+            order.status,
+            ShipmentOrder.Status.RECEIVED_AT_BRANCH,
+        )
+
+    def test_operator_without_change_permission_cannot_mark_order_ready_for_dispatch(self):
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.customer_user,
+            status=ShipmentOrder.Status.INVOICE_REGISTERED,
+        )
+
+        self.authenticate(self.operator)
+
+        response = self.client.post(
+            reverse(
+                "freight:freight-api-v1:shipment-order-ready-for-dispatch",
+                kwargs={"pk": order.pk},
+            ),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+        order.refresh_from_db()
+        self.assertEqual(
+            order.status,
+            ShipmentOrder.Status.INVOICE_REGISTERED,
+        )
+
+    def test_branch_manager_cannot_mark_other_branch_order_ready_for_dispatch(self):
+        order = self.create_order(
+            branch=self.other_branch,
+            customer=self.customer,
+            created_by=self.customer_user,
+            status=ShipmentOrder.Status.INVOICE_REGISTERED,
+        )
+
+        self.authenticate(self.branch_manager)
+
+        response = self.client.post(
+            reverse(
+                "freight:freight-api-v1:shipment-order-ready-for-dispatch",
+                kwargs={"pk": order.pk},
+            ),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+        order.refresh_from_db()
+        self.assertEqual(
+            order.status,
+            ShipmentOrder.Status.INVOICE_REGISTERED,
+        )

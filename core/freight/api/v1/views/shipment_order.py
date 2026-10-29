@@ -435,6 +435,48 @@ class ShipmentOrderViewSet(ModelViewSet):
             self.get_serializer(order).data,
             status=200,
         )
+        
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="ready-for-dispatch",
+        url_name="ready-for-dispatch",
+    )
+    def ready_for_dispatch(self, request, pk=None):
+        order = self.get_object()
+        user = request.user
+
+        if not (
+            user.is_superuser
+            or user.groups.filter(
+                name="BranchManager",
+            ).exists()
+            or user.has_perm("freight.change_shipmentorder")
+        ):
+            raise PermissionDenied(
+                "You do not have permission to prepare "
+                "shipment orders for dispatch."
+            )
+
+        serializer = ShipmentOrderActionSerializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        order = change_order_status(
+            order=order,
+            new_status=ShipmentOrder.Status.READY_FOR_DISPATCH,
+            changed_by=user,
+            note=(
+                serializer.validated_data.get("note")
+                or "Shipment order marked ready for dispatch."
+            ),
+        )
+
+        return Response(
+            self.get_serializer(order).data,
+            status=200,
+        )
 
     @action(
         detail=True,
