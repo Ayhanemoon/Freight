@@ -1,4 +1,5 @@
 from rest_framework.exceptions import (
+    NotFound,
     PermissionDenied,
     ValidationError as DRFValidationError,
 )
@@ -13,11 +14,13 @@ from freight.api.v1.serializers import (
     ShipmentStatusHistorySerializer,
     ShipmentOrderActionSerializer,
     ShipmentOrderRejectSerializer,
+    InvoiceSerializer,
 )
 from freight.services import change_order_status
 from freight.models import (
     CustomerBranchMembership,
     ShipmentOrder,
+    Invoice,
 )
 from freight.permissions.capabilities import (
     has_shipment_order_access_capability,
@@ -432,3 +435,27 @@ class ShipmentOrderViewSet(ModelViewSet):
             self.get_serializer(order).data,
             status=200,
         )
+
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="invoice",
+        url_name="invoice",
+    )
+    def invoice(self, request, pk=None):
+        # Reuse existing order-access and branch-scope checks.
+        order = self.get_object()
+
+        try:
+            invoice = order.invoice
+        except Invoice.DoesNotExist:
+            raise NotFound(
+                "No invoice exists for this shipment order."
+            )
+
+        serializer = InvoiceSerializer(
+            invoice,
+            context=self.get_serializer_context(),
+        )
+
+        return Response(serializer.data)

@@ -1,8 +1,10 @@
 from decimal import Decimal
 
+from django.contrib.auth.models import Group
 from django.urls import reverse
 from rest_framework import status
 
+from freight.constants.roles import Roles
 from freight.models import Invoice, Parcel, ShipmentOrder
 
 from .base import FreightAPITestCase
@@ -25,6 +27,11 @@ class InvoiceAPITests(FreightAPITestCase):
             branch=self.branch,
             is_staff=True,
         )
+
+        operator_group, _ = Group.objects.get_or_create(
+            name=Roles.OPERATOR,
+        )
+        self.operator.groups.add(operator_group)
 
         self.other_branch_user = self.create_user(
             mobile="09120001002",
@@ -637,3 +644,52 @@ class InvoiceAPITests(FreightAPITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_can_retrieve_invoice_by_order(self):
+        url = reverse(
+            "freight:freight-api-v1:shipment-order-invoice",
+            kwargs={"pk": self.order.pk},
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            response.data["id"],
+            self.invoice.pk,
+        )
+        self.assertEqual(
+            response.data["order"],
+            self.order.pk,
+        )
+
+
+    def test_retrieving_invoice_for_order_without_invoice_returns_404(self):
+        url = reverse(
+            "freight:freight-api-v1:shipment-order-invoice",
+            kwargs={"pk": self.create_order_instance.pk},
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+
+    def test_cannot_retrieve_invoice_for_order_outside_branch(self):
+        url = reverse(
+            "freight:freight-api-v1:shipment-order-invoice",
+            kwargs={"pk": self.other_order.pk},
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
