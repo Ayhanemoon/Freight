@@ -12,8 +12,10 @@ from freight.models import (
 )
 
 from freight.permissions.capabilities import (
+     has_branch_admin_capability,
     has_dispatch_management_capability,
     has_dispatch_execution_capability,
+    has_permission,
 )
 
 from freight.services.shipment_order import change_order_status
@@ -101,6 +103,11 @@ def _check_branch_access(*, user, branch_id):
             "outside your branch."
         )
 
+def _lock_dispatch_batch(*, batch):
+    return DispatchBatch.objects.select_for_update().get(
+        pk=batch.pk,
+    )
+
 def _validate_transition(
     *,
     current_status,
@@ -159,6 +166,8 @@ def add_order_to_batch(
 ):
     _check_dispatch_management_capability(user=added_by)
 
+    batch = _lock_dispatch_batch(batch=batch)
+    
     _check_branch_access(
         user=added_by,
         branch_id=batch.branch_id,
@@ -199,7 +208,8 @@ def remove_order_from_batch(
 ):
     _check_dispatch_management_capability(user=removed_by)
 
-    batch = dispatch_order.batch
+    batch = _lock_dispatch_batch(batch=dispatch_order.batch)
+    dispatch_order.refresh_from_db()
 
     _check_branch_access(
         user=removed_by,
@@ -221,6 +231,8 @@ def make_batch_ready(
 ):
     _check_dispatch_management_capability(user=changed_by)
 
+    batch = _lock_dispatch_batch(batch=batch)
+    
     _check_branch_access(
         user=changed_by,
         branch_id=batch.branch_id,
@@ -269,6 +281,8 @@ def assign_dispatcher(
 ):
     _check_dispatch_management_capability(user=assigned_by)
 
+    batch = _lock_dispatch_batch(batch=batch)
+    
     _check_branch_access(
         user=assigned_by,
         branch_id=batch.branch_id,
@@ -315,7 +329,7 @@ def assign_freight_company(
 ):
     _check_dispatch_management_capability(user=created_by)
 
-    batch = dispatch_order.batch
+    batch = _lock_dispatch_batch(batch=dispatch_order.batch)
 
     _check_branch_access(
         user=created_by,
@@ -395,6 +409,8 @@ def start_dispatch(
     started_by,
 ):
     _check_dispatch_execution_capability(user=started_by)
+
+    batch = _lock_dispatch_batch(batch=batch)
 
     _check_branch_access(
         user=started_by,
@@ -768,6 +784,8 @@ def complete_dispatch_batch(
 ):
     _check_dispatch_execution_capability(user=completed_by)
 
+    batch = _lock_dispatch_batch(batch=batch)
+
     _check_branch_access(
         user=completed_by,
         branch_id=batch.branch_id,
@@ -850,6 +868,8 @@ def cancel_dispatch_batch(
     notes="",
 ):
     _check_dispatch_management_capability(user=cancelled_by)
+
+    batch = _lock_dispatch_batch(batch=batch)
 
     _check_branch_access(
         user=cancelled_by,
@@ -1013,3 +1033,99 @@ def cancel_freight_assignment(
     )
 
     return assignment
+
+@transaction.atomic
+def update_dispatch_batch(
+    *,
+    batch,
+    updated_by,
+    changes,
+):
+    _check_dispatch_management_capability(
+        user=updated_by,
+    )
+
+    batch = _lock_dispatch_batch(batch=batch)
+
+    _check_branch_access(
+        user=updated_by,
+        branch_id=batch.branch_id,
+    )
+
+    if batch.status not in {
+        DispatchBatch.Status.DRAFT,
+        DispatchBatch.Status.READY,
+        DispatchBatch.Status.ASSIGNED,
+    }:
+        raise ValidationError(
+            "A dispatch batch can only be edited before "
+            "dispatch starts."
+        )
+
+    allowed_fields = {
+        "scheduled_at",
+        "notes",
+    }
+
+    unexpected_fields = set(changes.keys()) - allowed_fields
+
+    if unexpected_fields:
+        raise ValidationError({
+            field: "This field cannot be updated."
+            for field in sorted(unexpected_fields)
+        })
+
+    if not changes:
+        raise ValidationError(
+            "At least one field must be provided."
+        )
+
+    for field, value in changes.items():
+        setattr(batch, field, value)
+
+    batch.save(
+        update_fields=[
+            *changes.keys(),
+            "updated_at",
+        ]
+    )
+
+    return batch
+
+@transaction.atomic
+def delete_dispatch_batch(
+    *,
+    batch,
+    deleted_by,
+):
+    if not (
+        has_branch_admin_capability(deleted_by)
+        or has_permission(
+            deleted_by,
+            "freight.delete_dispatchbatch",
+        )
+    ):
+        raise PermissionDenied(
+            "You do not have permission to delete "
+            "dispatch batches."
+        )
+
+    batch = _lock_dispatch_batch(batch=batch)
+
+    _check_branch_access(
+        user=deleted_by,
+        branch_id=batch.branch_id,
+    )
+
+    if batch.status != DispatchBatch.Status.DRAFT:
+        raise ValidationError(
+            "Only draft dispatch batches can be deleted."
+        )
+
+    if batch.orders.exists():
+        raise ValidationError(
+            "A dispatch batch containing orders cannot be deleted. "
+            "Remove all orders first."
+        )
+
+    batch.delete()
