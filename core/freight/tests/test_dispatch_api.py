@@ -1035,3 +1035,243 @@ class DispatchCancellationAuthorizationAPITests(
             self.assignment.status,
             DispatchFreightAssignment.Status.CANCELLED,
         )
+
+
+class DispatchBatchUpdateDeleteAPITests(FreightAPITestCase):
+    def setUp(self):
+        self.branch = self.create_branch(
+            name="Tehran Branch",
+            code="THR",
+        )
+
+        self.operator = self.create_user(
+            mobile="09120000701",
+            branch=self.branch,
+            is_staff=True,
+        )
+
+        self.customer = self.create_customer(
+            user=self.create_user(
+                mobile="09120000702",
+            )
+        )
+
+        self.batch = DispatchBatch.objects.create(
+            branch=self.branch,
+            created_by=self.operator,
+        )
+
+        self.url = reverse(
+            "freight:freight-api-v1:dispatch-batch-detail",
+            kwargs={"pk": self.batch.pk},
+        )
+
+        self.authenticate(self.operator)
+
+    # ---------------------------------------------------------
+    # Update
+    # ---------------------------------------------------------
+
+    def test_can_update_scheduled_at_and_notes(self):
+        self.grant_permission(
+            self.operator,
+            "change_dispatchbatch",
+        )
+
+        response = self.client.patch(
+            self.url,
+            {
+                "notes": "Updated dispatch notes",
+                "scheduled_at": "2026-11-10T10:00:00Z",
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.batch.refresh_from_db()
+
+        self.assertEqual(
+            self.batch.notes,
+            "Updated dispatch notes",
+        )
+        self.assertIsNotNone(self.batch.scheduled_at)
+
+    def test_can_update_only_notes(self):
+        self.grant_permission(
+            self.operator,
+            "change_dispatchbatch",
+        )
+
+        response = self.client.patch(
+            self.url,
+            {"notes": "Notes only"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.notes, "Notes only")
+
+    def test_cannot_update_without_permission(self):
+        response = self.client.patch(
+            self.url,
+            {"notes": "Unauthorized update"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_cannot_update_with_empty_payload(self):
+        self.grant_permission(
+            self.operator,
+            "change_dispatchbatch",
+        )
+
+        response = self.client.patch(
+            self.url,
+            {},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_cannot_update_protected_fields(self):
+        self.grant_permission(
+            self.operator,
+            "change_dispatchbatch",
+        )
+
+        response = self.client.patch(
+            self.url,
+            {"status": DispatchBatch.Status.READY},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_cannot_update_batch_after_dispatch_starts(self):
+        self.grant_permission(
+            self.operator,
+            "change_dispatchbatch",
+        )
+
+        self.batch.status = DispatchBatch.Status.IN_PROGRESS
+        self.batch.save(update_fields=["status"])
+
+        response = self.client.patch(
+            self.url,
+            {"notes": "Too late"},
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    # ---------------------------------------------------------
+    # Delete
+    # ---------------------------------------------------------
+
+    def test_can_delete_empty_draft_batch(self):
+        self.grant_permission(
+            self.operator,
+            "delete_dispatchbatch",
+        )
+
+        response = self.client.delete(self.url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+        )
+
+        self.assertFalse(
+            DispatchBatch.objects.filter(
+                pk=self.batch.pk,
+            ).exists()
+        )
+
+    def test_cannot_delete_without_permission(self):
+        response = self.client.delete(self.url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+        self.assertTrue(
+            DispatchBatch.objects.filter(
+                pk=self.batch.pk,
+            ).exists()
+        )
+
+    def test_cannot_delete_batch_containing_orders(self):
+        self.grant_permission(
+            self.operator,
+            "delete_dispatchbatch",
+        )
+
+        order = self.create_order(
+            branch=self.branch,
+            customer=self.customer,
+            created_by=self.operator,
+            status=ShipmentOrder.Status.READY_FOR_DISPATCH,
+        )
+
+        DispatchOrder.objects.create(
+            batch=self.batch,
+            order=order,
+        )
+
+        response = self.client.delete(self.url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertTrue(
+            DispatchBatch.objects.filter(
+                pk=self.batch.pk,
+            ).exists()
+        )
+
+    def test_cannot_delete_non_draft_batch(self):
+        self.grant_permission(
+            self.operator,
+            "delete_dispatchbatch",
+        )
+
+        self.batch.status = DispatchBatch.Status.READY
+        self.batch.save(update_fields=["status"])
+
+        response = self.client.delete(self.url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertTrue(
+            DispatchBatch.objects.filter(
+                pk=self.batch.pk,
+            ).exists()
+        )
