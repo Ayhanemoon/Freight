@@ -27,6 +27,7 @@ from .collection_task import (
 from .dispatch import (
     DispatchBatchSerializer,
     DispatchBatchCreateSerializer,
+    DispatchBatchUpdateSerializer,
     DispatchOrderSerializer,
     DispatchOrderCreateSerializer,
     DispatchFreightAssignmentSerializer,

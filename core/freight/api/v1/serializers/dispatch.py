@@ -162,3 +162,22 @@ class DispatchDeliveredSerializer(serializers.Serializer):
         required=False,
         allow_blank=True,
     )
+
+
+class DispatchBatchUpdateSerializer(serializers.Serializer):
+    scheduled_at = serializers.DateTimeField(
+        required=False,
+        allow_null=True,
+    )
+    notes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+    )
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError(
+                "At least one field must be provided."
+            )
+
+        return attrs

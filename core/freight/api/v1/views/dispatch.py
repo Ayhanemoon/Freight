@@ -49,6 +49,8 @@ from freight.services.dispatch_service import (
     remove_order_from_batch,
     return_dispatch_order,
     start_dispatch,
+    update_dispatch_batch,
+    delete_dispatch_batch,
 )
 
 
@@ -194,6 +196,54 @@ class DispatchBatchViewSet(
         return Response(
             DispatchBatchSerializer(batch).data,
             status=status.HTTP_201_CREATED,
+        )
+
+    def partial_update(self, request, *args, **kwargs):
+        batch = self.get_object()
+
+        serializer = DispatchBatchUpdateSerializer(
+            data=request.data,
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            batch = update_dispatch_batch(
+                batch=batch,
+                updated_by=request.user,
+                changes=serializer.validated_data,
+            )
+        except ValidationError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            DispatchBatchSerializer(
+                batch,
+                context=self.get_serializer_context(),
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+    def destroy(self, request, *args, **kwargs):
+        batch = self.get_object()
+
+        try:
+            delete_dispatch_batch(
+                batch=batch,
+                deleted_by=request.user,
+            )
+        except ValidationError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            status=status.HTTP_204_NO_CONTENT,
         )
 
 

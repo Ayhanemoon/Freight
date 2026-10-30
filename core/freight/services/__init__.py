@@ -26,7 +26,9 @@ from .dispatch_service import (
     complete_dispatch_batch,
     cancel_dispatch_batch,
     cancel_dispatch_order,
-    cancel_freight_assignment
+    cancel_freight_assignment,
+    delete_dispatch_batch,
+    update_dispatch_batch,
 )
 
 from .invoice import (
