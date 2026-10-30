@@ -15,6 +15,7 @@ from rest_framework.mixins import (
 from freight.api.v1.serializers.dispatch import (
     DispatchAssignDispatcherSerializer,
     DispatchBatchCreateSerializer,
+    DispatchBatchUpdateSerializer,
     DispatchBatchSerializer,
     DispatchDeliveredSerializer,
     DispatchFreightAssignmentCreateSerializer,
