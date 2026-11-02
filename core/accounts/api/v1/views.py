@@ -10,7 +10,7 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.permissions import AllowAny
 from rest_framework.authtoken.models import Token
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from .serializers import (
     RegisterSerializer,
     EmailVerificationSerializer,
@@ -34,6 +34,8 @@ from .permissions import (
 from django.utils import timezone
 from ..utils import Util
 from datetime import datetime
+from drf_yasg import openapi
+from drf_yasg.utils import swagger_auto_schema
 from freight.constants import Roles
 
 class RegisterApiView(generics.GenericAPIView):
@@ -358,13 +360,89 @@ class UserListCreateApiView(generics.ListCreateAPIView):
         queryset = (
             User.objects
             .select_related("branch")
+            .prefetch_related("groups")
             .order_by("id")
         )
 
-        if user.is_superuser:
-            return queryset
+        # Preserve the existing security boundary.
+        if not user.is_superuser:
+            queryset = queryset.filter(branch_id=user.branch_id)
 
-        return queryset.filter(branch=user.branch)
+        params = self.request.query_params
+
+        branch_id = params.get("branch")
+        if branch_id is not None:
+            try:
+                branch_id = int(branch_id)
+            except (TypeError, ValueError):
+                raise ValidationError({
+                    "branch": "A valid branch ID is required."
+                })
+
+            # A branch user cannot override their own branch scope.
+            if user.is_superuser:
+                queryset = queryset.filter(branch_id=branch_id)
+            elif branch_id != user.branch_id:
+                queryset = queryset.none()
+
+        role = params.get("role")
+        if role:
+            valid_roles = UserListSerializer.ROLE_NAMES
+
+            if role not in valid_roles:
+                raise ValidationError({
+                    "role": "Invalid role."
+                })
+
+            queryset = queryset.filter(groups__name=role)
+
+        is_active = params.get("is_active")
+        if is_active is not None:
+            if is_active.lower() not in {"true", "false"}:
+                raise ValidationError({
+                    "is_active": "Use true or false."
+                })
+
+            queryset = queryset.filter(
+                is_active=(is_active.lower() == "true")
+            )
+
+        return queryset.distinct()
+
+    @swagger_auto_schema(
+        operation_summary="List users",
+        operation_description=(
+            "List users with optional filters. "
+            "Non-superusers can only access users in their own branch."
+        ),
+        manual_parameters=[
+            openapi.Parameter(
+                "role",
+                openapi.IN_QUERY,
+                description="Filter by Freight role.",
+                type=openapi.TYPE_STRING,
+                enum=sorted(UserListSerializer.ROLE_NAMES),
+                required=False,
+            ),
+            openapi.Parameter(
+                "branch",
+                openapi.IN_QUERY,
+                description="Filter by branch ID. Non-superusers cannot access other branches.",
+                type=openapi.TYPE_INTEGER,
+                required=False,
+            ),
+            openapi.Parameter(
+                "is_active",
+                openapi.IN_QUERY,
+                description="Filter by account status.",
+                type=openapi.TYPE_STRING,
+                enum=["true", "false"],
+                required=False,
+            ),
+        ],
+    )
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
 
 class UserDetailUpdateDeleteApiView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [CanManageUsers]

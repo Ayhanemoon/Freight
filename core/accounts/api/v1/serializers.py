@@ -10,6 +10,7 @@ from rest_framework.exceptions import AuthenticationFailed
 from django.shortcuts import get_object_or_404
 import jwt
 from django.conf import settings
+from freight.constants import Roles 
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -376,6 +377,15 @@ class BranchSummarySerializer(serializers.ModelSerializer):
 
 class UserListSerializer(serializers.ModelSerializer):
     branch = BranchSummarySerializer(read_only=True)
+    roles = serializers.SerializerMethodField()
+
+    ROLE_NAMES = {
+        Roles.BRANCH_MANAGER,
+        Roles.OPERATOR,
+        Roles.CARGO_COLLECTOR,
+        Roles.DISPATCHER,
+        Roles.CUSTOMER,
+    }
 
     class Meta:
         model = User
@@ -384,12 +394,20 @@ class UserListSerializer(serializers.ModelSerializer):
             "mobile",
             "email",
             "branch",
+            "roles",
             "is_active",
             "is_mobile_verified",
             "auth_provider",
             "created_at",
             "updated_at",
         ]
+
+    def get_roles(self, obj):
+        return sorted(
+            group.name
+            for group in obj.groups.all()
+            if group.name in self.ROLE_NAMES
+        )
 
 class UserCreateSerializer(serializers.ModelSerializer):
     mobile = serializers.CharField(

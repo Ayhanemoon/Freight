@@ -835,3 +835,99 @@ class TestAccountsUserCRUDAPI(APITestCase):
         self.assertFalse(
             self.user.check_password("testpass123")
         )
+
+    def test_user_list_includes_roles(self):
+        dispatcher_group = Group.objects.create(name="Dispatcher")
+        operator_group = Group.objects.create(name="Operator")
+
+        self.user.groups.add(dispatcher_group, operator_group)
+        self.authenticate(self.superuser)
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_data = next(
+            item
+            for item in response.data["results"]
+            if item["id"] == self.user.id
+        )
+
+        self.assertEqual(
+            set(user_data["roles"]),
+            {"Dispatcher", "Operator"},
+        )
+
+
+    def test_superuser_can_filter_users_by_role_and_branch(self):
+        dispatcher_group = Group.objects.create(name="Dispatcher")
+
+        self.user.groups.add(dispatcher_group)
+        self.other_branch_user.groups.add(dispatcher_group)
+
+        self.authenticate(self.superuser)
+
+        response = self.client.get(
+            self.list_url,
+            {
+                "role": "Dispatcher",
+                "branch": self.other_branch.id,
+                "is_active": "true",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(
+            response.data["results"][0]["id"],
+            self.other_branch_user.id,
+        )
+
+
+    def test_branch_user_cannot_filter_outside_own_branch(self):
+        dispatcher_group = Group.objects.create(name="Dispatcher")
+
+        self.user.groups.add(dispatcher_group)
+        self.other_branch_user.groups.add(dispatcher_group)
+
+        self.grant_permission(self.branch_manager, "view_user")
+        self.authenticate(self.branch_manager)
+
+        response = self.client.get(
+            self.list_url,
+            {
+                "role": "Dispatcher",
+                "branch": self.other_branch.id,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 0)
+
+
+    def test_user_list_rejects_invalid_role_filter(self):
+        self.authenticate(self.superuser)
+
+        response = self.client.get(
+            self.list_url,
+            {"role": "UnknownRole"},
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+
+    def test_user_list_rejects_invalid_is_active_filter(self):
+        self.authenticate(self.superuser)
+
+        response = self.client.get(
+            self.list_url,
+            {"is_active": "sometimes"},
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
